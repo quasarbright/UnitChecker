@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 2b919df3b00f3afbe80adaeab8670dab6178dd75b6dcba439079bee11b9c2fd4
+-- hash: 4c2d0850d7d35ab69dff8ac628a05c1f4408342533e9bb0e39ffb88bcad8c71a
 
 name:           UnitChecker
 version:        0.1.0.0
@@ -27,6 +27,7 @@ source-repository head
 
 library
   exposed-modules:
+      Exprs
       Lib
   other-modules:
       Paths_UnitChecker
@@ -34,6 +35,7 @@ library
       src
   build-depends:
       base >=4.7 && <5
+    , containers
   default-language: Haskell2010
 
 executable UnitChecker-exe
@@ -46,6 +48,7 @@ executable UnitChecker-exe
   build-depends:
       UnitChecker
     , base >=4.7 && <5
+    , containers
   default-language: Haskell2010
 
 test-suite UnitChecker-test
@@ -59,4 +62,5 @@ test-suite UnitChecker-test
   build-depends:
       UnitChecker
     , base >=4.7 && <5
+    , containers
   default-language: Haskell2010
