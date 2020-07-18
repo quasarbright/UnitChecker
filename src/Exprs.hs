@@ -25,7 +25,7 @@ instance Show BaseUnit where
 newtype Unit = Unit (Map BaseUnit Int) deriving(Eq, Ord)
 
 instance Show Unit where
-    show u = unwords . showPair <$> Map.toList (bases u) where
+    show u = unwords $ showPair <$> Map.toList (bases u) where
         showPair (base, power) = show base++"^"++show power
 
 -- | a derived unit of energy
@@ -53,7 +53,7 @@ data Prim1 = Negate deriving(Eq, Ord)
 instance Show Prim1 where
     show Negate = "-"
 
-data Prim2 = Plus | Minus | Times | Divide | Pow deriving(Eq, Ord, Show)
+data Prim2 = Plus | Minus | Times | Divide | Pow deriving(Eq, Ord)
 
 instance Show Prim2 where
     show Plus = "+"
@@ -81,7 +81,7 @@ instance Show Expr where
     show (Prim2 prim2 left right) = unwords [show left, show prim2, show right]
     show (Prim1 prim1 e) = show prim1++show e
     show (Parens e) = "("++show e++")"
-    show (Annot e u) = show e++" :: "+show u
+    show (Annot e u) = show e++" :: "++show u
 
 -- | A declaration of a variable's unit
 data VarDecl = VarDecl String Unit deriving(Eq, Ord)
