@@ -8,6 +8,7 @@ import Data.Ratio
 import Control.Monad.Trans.State.Lazy
 import Control.Monad.Trans.Class
 import Control.Monad
+import Data.Functor.Identity
 
 data Error a = UnboundDerived String a
              | UnboundVar String a
@@ -124,7 +125,7 @@ typeSynth e = case e of
                     let flipped = do
                         err <- flipEither $ powUnit onFail leftUnit rightRatio
                         -- TODO make it so expansion doesn't return Either bc well-formedness should guarantee it
-                        let leftUnitExpanded = Either.fromRight (error "expansion failed") (evalStateT (expandUnit leftUnit) env)
+                        let leftUnitExpanded = evalState (expandUnit leftUnit) env
                         _ <- flipEither $ powUnit onFail leftUnitExpanded rightRatio
                         return err
                     lift $ flipEither flipped
@@ -144,7 +145,7 @@ flipEither :: Either a b -> Either b a
 flipEither (Right b) = Left b
 flipEither (Left a) = Right a
 
-expandBaseUnit :: Ord a => BaseUnit a -> EnvProcessor a (Unit a)
+expandBaseUnit :: Ord a => BaseUnit a -> InfallibleEnvProcessor a (Unit a)
 expandBaseUnit (Derived name _) = do
     env <- get
     expandUnit $ Maybe.fromMaybe (error "unbound derived") (Map.lookup name (derivedMap env))
@@ -152,7 +153,7 @@ expandBaseUnit base = return $ fromBasesList [(base, 1)]
 
 -- TODO test
 -- | expands derived units to SI units and aggregates to one unit
-expandUnit :: Ord a => Unit a -> EnvProcessor a (Unit a)
+expandUnit :: Ord a => Unit a -> InfallibleEnvProcessor a (Unit a)
 expandUnit unit = do
         let basePows = Map.toList (bases unit)
         let expandAndRaiseBasePow (base, power) = do
@@ -164,7 +165,9 @@ expandUnit unit = do
 -- TODO test if you can compare StateT's for equality. seems weird
 assertSameUnit :: Ord a => Unit a -> Unit a -> a -> EnvProcessor a ()
 assertSameUnit a b tag = do
-    a' <- expandUnit a
-    b' <- expandUnit b
-    when (a' /= b') (lift $ Left $ Mismatch a b tag)
-
+    -- this weirdness is due to transforming between Identity and Either StateT's
+    unequal <- mapStateT (return . runIdentity) $ do
+        a' <- expandUnit a
+        b' <- expandUnit b
+        return (a' /= b')
+    when unequal (lift $ Left $ Mismatch a b tag)
