@@ -5,6 +5,8 @@ import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
 import qualified Data.Either as Either
 import Data.Ratio
+import Control.Monad.Trans.State.Lazy
+import Control.Monad.Trans.Class
 import Control.Monad
 
 data Error a = UnboundDerived String a
@@ -12,7 +14,8 @@ data Error a = UnboundDerived String a
              | UnboundFun String a
              | Mismatch (Unit a) (Unit a) a
              | ArityError String Int Int a
-             | BadDimensionlessPower (Expr a) a
+             | IrrationalDimensionlessExponent (Expr a) a
+             | IndivisibleRationalDimensionLessExponent (BaseUnit a) (Ratio Int) a
 
 data TyEnv a = TyEnv {derivedMap :: Map String (Unit a), varMap :: Map String (Unit a), funMap :: Map String (Signature a)}
 
@@ -66,9 +69,11 @@ checkWellFormedness (Program statements) = foldr go ([], ([], [], [])) statement
         ExprStatement e -> (errs++checkExprWellFormedness env e, env)
         EqnStatement (Equation left right _) -> (errs++checkExprWellFormedness env left++checkExprWellFormedness env right, env)
 
+type EnvProcessor a b = StateT (TyEnv a) (Either (Error a)) b
+
 -- | assumes program is well-formed
 typeCheckProgram :: Program a -> Either (Error a) ()
-typeCheckProgram a = Right()
+typeCheckProgram (Program statements) = return ()
 
 typeCheck :: Ord a => TyEnv a -> Expr a -> Unit a -> Either (Error a) ()
 typeCheck env e unit = do
@@ -90,10 +95,10 @@ typeSynth env e = case e of
         zipWithM_ (typeCheck env) args ins
         -- all good
         return ret
-    Prim1 Negate inner a -> typeSynth env inner
+    Prim1 Negate inner _ -> typeSynth env inner
     Prim2 prim2 left right a -> do
         leftUnit <- typeSynth env left
-        rightUnit <- typeSynth env right 
+        rightUnit <- typeSynth env right
         let plusMinus = do
                     assertSameUnit env leftUnit rightUnit a
                     return leftUnit
@@ -104,19 +109,34 @@ typeSynth env e = case e of
             Divide -> return $ divideUnits leftUnit rightUnit
             Pow
                 -- both dimensionless
-                | and $ null <$> [bases leftUnit, bases rightUnit] -> return leftUnit
+                | and $ null <$> [leftBasePows, rightBasePows] -> return leftUnit
                 -- dimensionful ^ dimensionless, must be rational p/q and pows must be divisible by q
-                | null (bases rightUnit) -> do
-                    _ -- LEFTOFF need to either use powUnit with 1 retry where you expand the unit
-                      -- or just check power divisibilities from here and use powUnitTruncate if things check out
-                          -- expanding if bad divisibility and then giving if still bad divisibility
-                
+                | null rightBasePows -> do
+                    let maybeRightRatio = asRatio right
+                    rightRatio <- Maybe.maybe (Left (IrrationalDimensionlessExponent right a)) Right maybeRightRatio
+                    let onFail base pq = IndivisibleRationalDimensionLessExponent base pq a
+                    -- if any succeed, return it. Otherwise, keep trying
+                    let flipped = do
+                        err1 <- flipEither $ powUnit onFail leftUnit rightRatio
+                        let leftUnitExpanded = expandUnit env leftUnit
+                        _ <- flipEither $ powUnit onFail leftUnitExpanded rightRatio
+                        return err1
+                    flipEither flipped
+                -- dimensionless ^ dimensionfull, mismatch
+                | otherwise -> Left (Mismatch dimensionless rightUnit a)
+                where
+                    leftBasePows = Map.toList (bases leftUnit)
+                    rightBasePows = Map.toList (bases rightUnit)
     Parens inner _ -> typeSynth env inner
-    Annot e' unit _
-        | canBeAnnotated e' -> return unit
+    Annot inner unit _
+        | canBeAnnotated inner -> return unit
         | otherwise -> do
-            typeCheck env e' unit 
+            typeCheck env inner unit 
             return unit
+
+flipEither :: Either a b -> Either b a
+flipEither (Right b) = Left b
+flipEither (Left a) = Right a
 
 expandBaseUnit :: Ord a => TyEnv a -> BaseUnit a -> Unit a
 expandBaseUnit env (Derived name _) = expandUnit env $ Maybe.fromMaybe (error "unbound derived") (Map.lookup name (derivedMap env))

@@ -4,6 +4,7 @@ module Lib
 
 import Exprs
 import Check
+import StateTPractice
 
 someFunc :: IO ()
 someFunc = putStrLn "someFunc"

@@ -68,13 +68,13 @@ divideUnits a b = fromBases $ Map.unionWith (-) (bases a) (bases b)
 
 -- | powUnit onFail unit (p % q) multiplies the unit's exponents by p / q
 --   if a base unit's power is not divisible by q, call onFail on it
-powUnit :: Ord a => (BaseUnit a -> Int -> b) -> Unit a -> Ratio Int -> Either b (Unit a)
+powUnit :: Ord a => (BaseUnit a -> Ratio Int -> b) -> Unit a -> Ratio Int -> Either b (Unit a)
 powUnit onFail unit pq = Unit . Map.fromList <$> mapM mulPower (Map.toList (bases unit)) where
     mulPower (base, power) = do
         let p = numerator pq
         let q = denominator pq
-        when (q == 0) (Left (onFail base power))
-        when (mod (power * p) q /= 0) (Left (onFail base power))
+        when (q == 0) (Left (onFail base pq))
+        when (mod (power * p) q /= 0) (Left (onFail base pq))
         return (base, power * p `div` q)
 
 -- | Multiply a unit's powers by a rational p/q and truncate if the power isn't divisible by q
