@@ -70,37 +70,41 @@ checkWellFormedness (Program statements) = foldr go ([], ([], [], [])) statement
         EqnStatement (Equation left right _) -> (errs++checkExprWellFormedness env left++checkExprWellFormedness env right, env)
 
 type EnvProcessor a b = StateT (TyEnv a) (Either (Error a)) b
+type InfallibleEnvProcessor a b = State (TyEnv a) b
 
 -- | assumes program is well-formed
 typeCheckProgram :: Program a -> Either (Error a) ()
 typeCheckProgram (Program statements) = return ()
 
-typeCheck :: Ord a => TyEnv a -> Expr a -> Unit a -> Either (Error a) ()
-typeCheck env e unit = do
-    unit' <- typeSynth env e
-    assertSameUnit env unit unit' (getTag e)
+typeCheck :: Ord a => Expr a -> Unit a -> EnvProcessor a ()
+typeCheck e unit = do
+    unit' <- typeSynth e
+    assertSameUnit unit unit' (getTag e)
 
-typeSynth :: Ord a => TyEnv a -> Expr a -> Either (Error a) (Unit a)
-typeSynth env e = case e of
+typeSynth :: Ord a => Expr a -> EnvProcessor a (Unit a)
+typeSynth e = case e of
     DoubleExpr{} -> return dimensionless
     IntExpr{} -> return dimensionless
-    Var name _ -> return $ Maybe.fromMaybe (error "unbound var") (Map.lookup name (varMap env))
+    Var name a -> do
+        env <- get
+        lift $ maybe (Left (UnboundVar name a)) Right (Map.lookup name (varMap env))
     App f args a -> do
+        env <- get
         let Signature ins ret _ = Maybe.fromMaybe (error "unbound fun") (Map.lookup f (funMap env))
         let expected = length ins
         let actual = length args
         -- arity check
-        when (expected /= actual) (Left (ArityError f expected actual a))
+        when (expected /= actual) (lift $ Left (ArityError f expected actual a))
         -- check that all the args match the argument types
-        zipWithM_ (typeCheck env) args ins
+        zipWithM_ typeCheck args ins
         -- all good
         return ret
-    Prim1 Negate inner _ -> typeSynth env inner
+    Prim1 Negate inner _ -> typeSynth inner
     Prim2 prim2 left right a -> do
-        leftUnit <- typeSynth env left
-        rightUnit <- typeSynth env right
+        leftUnit <- typeSynth left
+        rightUnit <- typeSynth right
         let plusMinus = do
-                    assertSameUnit env leftUnit rightUnit a
+                    assertSameUnit leftUnit rightUnit a
                     return leftUnit
         case prim2 of
             Plus -> plusMinus
@@ -112,46 +116,55 @@ typeSynth env e = case e of
                 | and $ null <$> [leftBasePows, rightBasePows] -> return leftUnit
                 -- dimensionful ^ dimensionless, must be rational p/q and pows must be divisible by q
                 | null rightBasePows -> do
+                    env <- get
                     let maybeRightRatio = asRatio right
-                    rightRatio <- Maybe.maybe (Left (IrrationalDimensionlessExponent right a)) Right maybeRightRatio
+                    rightRatio <- lift $ Maybe.maybe (Left (IrrationalDimensionlessExponent right a)) Right maybeRightRatio
                     let onFail base pq = IndivisibleRationalDimensionLessExponent base pq a
                     -- if any succeed, return it. Otherwise, keep trying
                     let flipped = do
-                        err1 <- flipEither $ powUnit onFail leftUnit rightRatio
-                        let leftUnitExpanded = expandUnit env leftUnit
+                        err <- flipEither $ powUnit onFail leftUnit rightRatio
+                        -- TODO make it so expansion doesn't return Either bc well-formedness should guarantee it
+                        let leftUnitExpanded = Either.fromRight (error "expansion failed") (evalStateT (expandUnit leftUnit) env)
                         _ <- flipEither $ powUnit onFail leftUnitExpanded rightRatio
-                        return err1
-                    flipEither flipped
+                        return err
+                    lift $ flipEither flipped
                 -- dimensionless ^ dimensionfull, mismatch
-                | otherwise -> Left (Mismatch dimensionless rightUnit a)
+                | otherwise -> lift $ Left (Mismatch dimensionless rightUnit a)
                 where
                     leftBasePows = Map.toList (bases leftUnit)
                     rightBasePows = Map.toList (bases rightUnit)
-    Parens inner _ -> typeSynth env inner
+    Parens inner _ -> typeSynth inner
     Annot inner unit _
         | canBeAnnotated inner -> return unit
         | otherwise -> do
-            typeCheck env inner unit 
+            typeCheck inner unit 
             return unit
 
 flipEither :: Either a b -> Either b a
 flipEither (Right b) = Left b
 flipEither (Left a) = Right a
 
-expandBaseUnit :: Ord a => TyEnv a -> BaseUnit a -> Unit a
-expandBaseUnit env (Derived name _) = expandUnit env $ Maybe.fromMaybe (error "unbound derived") (Map.lookup name (derivedMap env))
-expandBaseUnit _ base = fromBasesList [(base, 1)]
+expandBaseUnit :: Ord a => BaseUnit a -> EnvProcessor a (Unit a)
+expandBaseUnit (Derived name _) = do
+    env <- get
+    expandUnit $ Maybe.fromMaybe (error "unbound derived") (Map.lookup name (derivedMap env))
+expandBaseUnit base = return $ fromBasesList [(base, 1)]
 
 -- TODO test
 -- | expands derived units to SI units and aggregates to one unit
-expandUnit :: Ord a => TyEnv a -> Unit a -> Unit a
-expandUnit env (Unit m) = ans where
-    basePows = Map.toList m
-    go (base, pow) = (expandBaseUnit env base, pow)
-    unitPows = go <$> basePows
-    units = [powUnitTruncate unit (power % 1) | (unit, power) <- unitPows]
-    ans = foldr multiplyUnits dimensionless units
+expandUnit :: Ord a => Unit a -> EnvProcessor a (Unit a)
+expandUnit unit = do
+        let basePows = Map.toList (bases unit)
+        let expandAndRaiseBasePow (base, power) = do
+            expandedBase <- expandBaseUnit base
+            return $ powUnitTruncate expandedBase (power % 1)
+        let raisedBases = expandAndRaiseBasePow <$> basePows
+        foldr (liftM2 multiplyUnits) (return dimensionless) raisedBases
 
-assertSameUnit :: Ord a => TyEnv a -> Unit a -> Unit a -> a -> Either (Error a) ()
-assertSameUnit env a b tag = when (expandUnit env a /= expandUnit env b) (Left $ Mismatch a b tag)
+-- TODO test if you can compare StateT's for equality. seems weird
+assertSameUnit :: Ord a => Unit a -> Unit a -> a -> EnvProcessor a ()
+assertSameUnit a b tag = do
+    a' <- expandUnit a
+    b' <- expandUnit b
+    when (a' /= b') (lift $ Left $ Mismatch a b tag)
 
