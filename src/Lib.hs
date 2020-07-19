@@ -3,6 +3,7 @@ module Lib
     ) where
 
 import Exprs
+import Check
 
 someFunc :: IO ()
 someFunc = putStrLn "someFunc"

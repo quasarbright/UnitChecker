@@ -25,6 +25,7 @@ dependencies:
 
 library:
   source-dirs: src
+  ghc-options: -w -Wall
 
 executables:
   UnitChecker-exe:
@@ -45,5 +46,6 @@ tests:
     - -threaded
     - -rtsopts
     - -with-rtsopts=-N
+    - ghc-options -w -Wall
     dependencies:
     - UnitChecker

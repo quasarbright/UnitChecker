@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 4c2d0850d7d35ab69dff8ac628a05c1f4408342533e9bb0e39ffb88bcad8c71a
+-- hash: 2691bb153b66a4bd68d46927cea5b53071addcba0d8fe6bdafa2659314f27cdd
 
 name:           UnitChecker
 version:        0.1.0.0
@@ -27,12 +27,14 @@ source-repository head
 
 library
   exposed-modules:
+      Check
       Exprs
       Lib
   other-modules:
       Paths_UnitChecker
   hs-source-dirs:
       src
+  ghc-options: -w -Wall
   build-depends:
       base >=4.7 && <5
     , containers
@@ -58,7 +60,7 @@ test-suite UnitChecker-test
       Paths_UnitChecker
   hs-source-dirs:
       test
-  ghc-options: -threaded -rtsopts -with-rtsopts=-N
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N ghc-options -w -Wall
   build-depends:
       UnitChecker
     , base >=4.7 && <5
