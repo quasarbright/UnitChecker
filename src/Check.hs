@@ -65,17 +65,23 @@ checkExprWellFormedness env@(deriveds, vars, funs) e =
 checkWellFormedness :: Program a -> ([Error a], ([String], [String], [String]))
 checkWellFormedness (Program statements) = foldr go ([], ([], [], [])) statements where
     go statement (errs, env@(deriveds, vars, funs)) = case statement of
-        VarDeclStatement vd@(VarDecl name _ _) -> (errs++checkVarDecl deriveds vd, (deriveds, name:vars, funs))
-        DerivedDeclStatement dd@(DerivedDecl name _ _) -> (errs++checkDerivedDecl deriveds dd, (name:deriveds, vars, funs))
-        ExprStatement e -> (errs++checkExprWellFormedness env e, env)
-        EqnStatement (Equation left right _) -> (errs++checkExprWellFormedness env left++checkExprWellFormedness env right, env)
+        VarDeclStatement vd@(VarDecl name _ _) _ -> (errs++checkVarDecl deriveds vd, (deriveds, name:vars, funs))
+        DerivedDeclStatement dd@(DerivedDecl name _ _) _ -> (errs++checkDerivedDecl deriveds dd, (name:deriveds, vars, funs))
+        ExprStatement e _ -> (errs++checkExprWellFormedness env e, env)
+        EqnStatement (Equation left right _) _ -> (errs++checkExprWellFormedness env left++checkExprWellFormedness env right, env)
 
 type EnvProcessor a b = StateT (TyEnv a) (Either (Error a)) b
 type InfallibleEnvProcessor a b = State (TyEnv a) b
 
 -- | assumes program is well-formed
-typeCheckProgram :: Program a -> Either (Error a) ()
-typeCheckProgram (Program statements) = return ()
+typeCheckProgram :: Ord a => Program a -> EnvProcessor a ()
+typeCheckProgram (Program statements) = sequence_ (checkStatement <$> statements)
+
+checkStatement :: Ord a => Statement a -> EnvProcessor a ()
+checkStatement (ExprStatement e _) = void $ typeSynth e
+checkStatement (EqnStatement (Equation left right _) _) = sequence_ $ typeSynth <$> [left, right]
+checkStatement (VarDeclStatement (VarDecl name unit _) _) = modify $ addVar name unit
+checkStatement (DerivedDeclStatement (DerivedDecl name unit _) _) = modify $ addDerived name unit
 
 typeCheck :: Ord a => Expr a -> Unit a -> EnvProcessor a ()
 typeCheck e unit = do

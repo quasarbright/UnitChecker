@@ -175,10 +175,13 @@ data Equation a = Equation (Expr a) (Expr a) a
 instance Show (Equation a) where
     show (Equation left right _) = show left++" = "++show right
 
-data Statement a = ExprStatement (Expr a)
-                 | EqnStatement (Equation a)
-                 | VarDeclStatement (VarDecl a)
-                 | DerivedDeclStatement (DerivedDecl a)
+-- TODO maybe just get rid of VarDecl and friends
+-- Just have VarDecl be a Statement case instead of its own type
+-- TODO variable definition staetments would be nice
+data Statement a = ExprStatement (Expr a) a
+                 | EqnStatement (Equation a) a
+                 | VarDeclStatement (VarDecl a) a
+                 | DerivedDeclStatement (DerivedDecl a) a
 
 -- | A program to be type-checked
 newtype Program a = Program [Statement a]
