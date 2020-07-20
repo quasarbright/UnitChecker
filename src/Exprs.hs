@@ -8,6 +8,7 @@ import Data.Ratio
 
 type Map k v = Map.Map k v
 
+-- TODO rm radians
 -- | SI units + radians + derived
 data BaseUnit a = Meter a | Second a | Kilogram a | Ampere a | Kelvin a | Mole a | Candela a | Radian a | Derived String a deriving(Ord)
 
@@ -27,6 +28,7 @@ instance Show (BaseUnit a) where
     show Radian{} = "rad"
     show (Derived name _) = name
 
+-- TODO units need an a
 -- | map from base units to their exponents
 newtype Unit a = Unit (Map (BaseUnit a) Int) deriving(Eq, Ord)
 
@@ -53,6 +55,9 @@ bases (Unit m) = m
 dimensionless :: Ord a => Unit a
 dimensionless = fromBasesList []
 
+isDimensionless :: Unit a -> Bool
+isDimensionless unit = null $ bases unit
+
 fromBases :: Map (BaseUnit a) Int -> Unit a
 fromBases m = Unit m' where
     m' = Map.filter (/= 0) m
@@ -68,22 +73,20 @@ divideUnits a b = fromBases $ Map.unionWith (-) (bases a) (bases b)
 
 -- | powUnit onFail unit (p % q) multiplies the unit's exponents by p / q
 --   if a base unit's power is not divisible by q, call onFail on it
-powUnit :: Ord a => (BaseUnit a -> Ratio Int -> b) -> Unit a -> Ratio Int -> Either b (Unit a)
-powUnit onFail unit pq = Unit . Map.fromList <$> mapM mulPower (Map.toList (bases unit)) where
+powUnit :: Ord a => Unit a -> Ratio Int -> Either (BaseUnit a, Int) (Unit a)
+powUnit unit pq = Unit . Map.fromList <$> mapM mulPower (Map.toList (bases unit)) where
     mulPower (base, power) = do
         let p = numerator pq
         let q = denominator pq
-        when (q == 0) (Left (onFail base pq))
-        when (mod (power * p) q /= 0) (Left (onFail base pq))
+        when (q == 0) (Left (base, power))
+        when (mod (power * p) q /= 0) (Left (base, power))
         return (base, power * p `div` q)
 
--- | Multiply a unit's powers by a rational p/q and truncate if the power isn't divisible by q
-powUnitTruncate :: Ord a => Unit a -> Ratio Int -> Unit a
-powUnitTruncate unit pq = Unit . Map.fromList $ mulPower <$> Map.toList (bases unit) where
+-- | Raise a unit to an integer p power by multiplying its exponents by p
+powUnitInt :: Ord a => Unit a -> Int -> Unit a
+powUnitInt unit p = Unit . Map.fromList $ mulPower <$> Map.toList (bases unit) where
     mulPower (base, power) =
-        let p = numerator pq in
-        let q = denominator pq in
-        (base, power * p `div` q)
+        (base, power * p)
 
 data Prim1 = Negate deriving(Eq, Ord)
 
@@ -165,23 +168,24 @@ asRatio (Parens e _) = asRatio e
 asRatio (Annot e _ _) = asRatio e
 
 -- | A declaration of a variable's unit
-data VarDecl a = VarDecl String (Unit a) a deriving(Eq, Ord)
+data VarDecl a = VarDecl String (Unit a) a deriving(Eq, Ord, Show)
 
 -- | A declaration of a derived unit (like joule = kg m / s^2)
-data DerivedDecl a = DerivedDecl String (Unit a) a
+data DerivedDecl a = DerivedDecl String (Unit a) a deriving(Eq, Ord, Show)
 -- | A mathematical equation
-data Equation a = Equation (Expr a) (Expr a) a
+data Equation a = Equation (Expr a) (Expr a) a deriving(Eq, Ord)
 
 instance Show (Equation a) where
     show (Equation left right _) = show left++" = "++show right
 
 -- TODO maybe just get rid of VarDecl and friends
 -- Just have VarDecl be a Statement case instead of its own type
--- TODO variable definition staetments would be nice
 data Statement a = ExprStatement (Expr a) a
                  | EqnStatement (Equation a) a
                  | VarDeclStatement (VarDecl a) a
                  | DerivedDeclStatement (DerivedDecl a) a
+                 | VarDefStatement String (Expr a) a
+                 deriving(Eq, Ord, Show)
 
 -- | A program to be type-checked
 newtype Program a = Program [Statement a]

@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 533629cf4f6ca5b9befbbcc5bbd6416d602d319035dc4b5fa6a363be31ab94e1
+-- hash: 22ba7bae9f9ae7d7878675379018e3a2976117b334adaee3fdf84035c2812e46
 
 name:           UnitChecker
 version:        0.1.0.0
@@ -63,9 +63,10 @@ test-suite UnitChecker-test
       Paths_UnitChecker
   hs-source-dirs:
       test
-  ghc-options: -threaded -rtsopts -with-rtsopts=-N ghc-options -w -Wall
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N -w -Wall
   build-depends:
-      UnitChecker
+      HUnit
+    , UnitChecker
     , base >=4.7 && <5
     , containers
     , transformers

@@ -1,9 +1,8 @@
-module Check(checkWellFormedness, typeCheckProgram) where
+module Check where
 
 import Exprs
 import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
-import qualified Data.Either as Either
 import Data.Ratio
 import Control.Monad.Trans.State.Lazy
 import Control.Monad.Trans.Class
@@ -16,10 +15,27 @@ data Error a = UnboundDerived String a
              | Mismatch (Unit a) (Unit a) a
              | ArityError String Int Int a
              | IrrationalDimensionlessExponent (Expr a) a
-             | IndivisibleRationalDimensionLessExponent (BaseUnit a) (Ratio Int) a
+             | IndivisibleRationalDimensionLessExponent (BaseUnit a) Int (Ratio Int) a
+             deriving(Eq, Ord)
+
+instance Show a => Show (Error a) where
+    show (UnboundDerived name a) = "Unbound derived unit \""++name++"\" at "++show a
+    show (UnboundVar name a) = "Unbound variable \""++name++"\" at "++show a
+    show (UnboundFun name a) = "Unbound function \""++name++"\" at "++show a
+    show (Mismatch expected actual a) 
+        | isDimensionless expected = "Unit mismatch: expected a dimensionless quantity, but got units of <"++show actual++"> at "++show a
+        | isDimensionless actual = "Unit mismatch: expected units of <"++show expected++">, but got a dimensionless quantity at "++show a
+        | otherwise = "Unit mismatch: Expected units of <"++show expected++">, but got units of <"++show actual++"> at "++show a
+    show (ArityError name expected actual a) = "Arity error: function "++show name++" expects "++show expected++" arguments, but "++show actual++" arguments were given at "++show a
+    show (IrrationalDimensionlessExponent e a) = "The exponent of a quantity with units must be obviously rational. Exponent "++show e++" is not obviously rational. Try simplifying. At "++show a
+    show (IndivisibleRationalDimensionLessExponent base power pq a) = "Unable to exponentiate unit <"++show base++"^"++show power++"> to the power "++show p++"/"++show q++" since "++show base++"*"++show p++" is not divisible by "++show q++". At "++show a
+        where
+            p = numerator pq
+            q = denominator pq
 
 data TyEnv a = TyEnv {derivedMap :: Map String (Unit a), varMap :: Map String (Unit a), funMap :: Map String (Signature a)}
-
+emptyEnvironment :: TyEnv a
+emptyEnvironment = TyEnv {derivedMap=Map.empty, varMap=Map.empty, funMap=Map.empty}
 
 addDerived :: Ord a => String -> Unit a -> TyEnv a -> TyEnv a
 addDerived name unit env = env{derivedMap=Map.insert name unit (derivedMap env)}
@@ -29,6 +45,24 @@ addVar name unit env = env{varMap=Map.insert name unit (varMap env)}
 
 addFun :: Ord a => String -> Signature a -> TyEnv a -> TyEnv a
 addFun name sig env = env{funMap=Map.insert name sig (funMap env)}
+
+infixl 1 |>
+(|>) :: a -> (a -> b) -> b
+x |> f = f x
+
+initialEnv :: Ord a => a -> TyEnv a
+initialEnv a =
+    emptyEnvironment
+    |> addDerived "N" (fromBasesList [(Kilogram a, 1), (Meter a, 1), (Second a, -2)])
+    |> addDerived "J" (fromBasesList [(Derived "N"  a, 1), (Meter a, 1)])
+    |> addDerived "c" (fromBasesList [(Ampere a, 1), (Second a, 1)])
+    |> addDerived "hz" (fromBasesList [(Second a, -1)])
+    |> addVar "g" (fromBasesList [(Meter a, 1), (Second a, -2)])
+    |> addVar "c" (fromBasesList [(Meter a, 1), (Second a, -1)])
+    |> addVar "pi" dimensionless
+    |> addVar "e" dimensionless
+    |> addFun "sin" (Signature [dimensionless] dimensionless a)
+    |> addFun "exp" (Signature [dimensionless] dimensionless a)
 
 getUnitFreeVars :: Unit a -> [(String, a)]
 getUnitFreeVars unit = dNames where
@@ -61,7 +95,7 @@ checkExprWellFormedness env@(deriveds, vars, funs) e =
         Annot e' unit _ -> recurse e'++checkUnit deriveds unit
     where
         recurse = checkExprWellFormedness env
-
+--                                        deriveds, vars,     funs
 checkWellFormedness :: Program a -> ([Error a], ([String], [String], [String]))
 checkWellFormedness (Program statements) = foldr go ([], ([], [], [])) statements where
     go statement (errs, env@(deriveds, vars, funs)) = case statement of
@@ -69,19 +103,23 @@ checkWellFormedness (Program statements) = foldr go ([], ([], [], [])) statement
         DerivedDeclStatement dd@(DerivedDecl name _ _) _ -> (errs++checkDerivedDecl deriveds dd, (name:deriveds, vars, funs))
         ExprStatement e _ -> (errs++checkExprWellFormedness env e, env)
         EqnStatement (Equation left right _) _ -> (errs++checkExprWellFormedness env left++checkExprWellFormedness env right, env)
+        VarDefStatement name e _ -> (errs++checkExprWellFormedness env e, (deriveds, name:vars, funs))
 
 type EnvProcessor a b = StateT (TyEnv a) (Either (Error a)) b
 type InfallibleEnvProcessor a b = State (TyEnv a) b
 
 -- | assumes program is well-formed
-typeCheckProgram :: Ord a => Program a -> EnvProcessor a ()
-typeCheckProgram (Program statements) = sequence_ (checkStatement <$> statements)
+typeCheckProgramEnv :: Ord a => Program a -> EnvProcessor a ()
+typeCheckProgramEnv (Program statements) = sequence_ (checkStatement <$> statements)
 
 checkStatement :: Ord a => Statement a -> EnvProcessor a ()
 checkStatement (ExprStatement e _) = void $ typeSynth e
 checkStatement (EqnStatement (Equation left right _) _) = sequence_ $ typeSynth <$> [left, right]
 checkStatement (VarDeclStatement (VarDecl name unit _) _) = modify $ addVar name unit
 checkStatement (DerivedDeclStatement (DerivedDecl name unit _) _) = modify $ addDerived name unit
+checkStatement (VarDefStatement name e _) = do
+    unit <- typeSynth e
+    modify $ addVar name unit
 
 typeCheck :: Ord a => Expr a -> Unit a -> EnvProcessor a ()
 typeCheck e unit = do
@@ -126,14 +164,13 @@ typeSynth e = case e of
                     env <- get
                     let maybeRightRatio = asRatio right
                     rightRatio <- lift $ Maybe.maybe (Left (IrrationalDimensionlessExponent right a)) Right maybeRightRatio
-                    let onFail base pq = IndivisibleRationalDimensionLessExponent base pq a
                     -- if any succeed, return it. Otherwise, keep trying
                     let flipped = do
-                        err <- flipEither $ powUnit onFail leftUnit rightRatio
-                        -- TODO make it so expansion doesn't return Either bc well-formedness should guarantee it
-                        let leftUnitExpanded = evalState (expandUnit leftUnit) env
-                        _ <- flipEither $ powUnit onFail leftUnitExpanded rightRatio
-                        return err
+                            (base, power) <- flipEither $ powUnit leftUnit rightRatio
+                            let leftUnitExpanded = evalState (expandUnit leftUnit) env
+                            _ <- flipEither $ powUnit leftUnitExpanded rightRatio
+                            -- want to report the error in terms of the derived units
+                            return (IndivisibleRationalDimensionLessExponent base power rightRatio a)
                     lift $ flipEither flipped
                 -- dimensionless ^ dimensionfull, mismatch
                 | otherwise -> lift $ Left (Mismatch dimensionless rightUnit a)
@@ -157,18 +194,16 @@ expandBaseUnit (Derived name _) = do
     expandUnit $ Maybe.fromMaybe (error "unbound derived") (Map.lookup name (derivedMap env))
 expandBaseUnit base = return $ fromBasesList [(base, 1)]
 
--- TODO test
 -- | expands derived units to SI units and aggregates to one unit
 expandUnit :: Ord a => Unit a -> InfallibleEnvProcessor a (Unit a)
 expandUnit unit = do
         let basePows = Map.toList (bases unit)
         let expandAndRaiseBasePow (base, power) = do
-            expandedBase <- expandBaseUnit base
-            return $ powUnitTruncate expandedBase (power % 1)
+                expandedBase <- expandBaseUnit base
+                return $ powUnitInt expandedBase power
         let raisedBases = expandAndRaiseBasePow <$> basePows
         foldr (liftM2 multiplyUnits) (return dimensionless) raisedBases
 
--- TODO test if you can compare StateT's for equality. seems weird
 assertSameUnit :: Ord a => Unit a -> Unit a -> a -> EnvProcessor a ()
 assertSameUnit a b tag = do
     -- this weirdness is due to transforming between Identity and Either StateT's
@@ -177,3 +212,9 @@ assertSameUnit a b tag = do
         b' <- expandUnit b
         return (a' /= b')
     when unequal (lift $ Left $ Mismatch a b tag)
+
+checkProgramWith :: Ord a => a -> Program a -> Either [Error a] ()
+checkProgramWith dummy p = do
+    let (errs, _) = checkWellFormedness p
+    unless (null errs) (Left errs)
+    either (Left . return) Right (evalStateT (typeCheckProgramEnv p) (initialEnv dummy))
