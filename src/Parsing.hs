@@ -1,4 +1,4 @@
-module Parsing where
+module Parsing(expr, parseExpr) where
 
 import Text.ParserCombinators.Parsec hiding (many, (<|>))
 import qualified Text.Parsec.Token as P
@@ -7,83 +7,9 @@ import Data.Functor
 import qualified Data.Functor.Identity
 import Text.Parsec.Pos
 import Exprs
+import Control.Monad
+import ParseUtils
 
-data SourceSpan = SourceSpan {beg::SourcePos, end::SourcePos}
-type SS = SourceSpan
-instance Show SourceSpan where
-    show ss = name++" "++show startLine++":"++show startCol++"-"++show endLine++show endCol where
-        name = sourceName (beg ss)
-        startLine = sourceLine (beg ss)
-        startCol = sourceColumn (beg ss)
-        endLine = sourceLine (end ss)
-        endCol = sourceColumn (end ss)
-dummySS :: SourceSpan
-dummySS = SourceSpan (newPos "" 0 0) (newPos "" 0 0)
-
-lang :: P.GenLanguageDef String () Data.Functor.Identity.Identity
-lang = P.LanguageDef{
-    P.commentStart = "/*",
-    P.commentEnd = "*/",
-    P.commentLine = "//",
-    P.nestedComments = True,
-    P.identStart = letter <|> char '_' :: Parser Char,
-    P.identLetter = letter <|> digit <|> char '_',
-    P.opStart = oneOf ":!#$%&*+./<=>?@\\^|-~",
-    P.opLetter = oneOf ":!#$%&*+./<=>?@\\^|-~",
-    P.reservedNames = ["var", "def", "fun", "expr", "eq", "derived"],
-    P.reservedOpNames = ["+", "-", "*", "/", "^", "="],
-    P.caseSensitive = True}
-
-lexer :: P.GenTokenParser String () Data.Functor.Identity.Identity
-lexer = P.makeTokenParser lang
-
--- decorates a parser with the source span over the entirety of the parse
-wrapSS :: Parser a -> Parser (a, SS)
-wrapSS p = do
-    beg <- getPosition
-    a <- p
-    end <- getPosition
-    return (a, SourceSpan beg end)
-
-intTok :: Parser Int
-intTok = char '-' $> negate <*> go
-      <|> go
-      where
-          go = fromIntegral <$> P.integer lexer
-
-doubleTok :: Parser Double
-doubleTok = try (char '-' $> negate <*> float)
-         <|> try float
-         <|> (fromIntegral <$> intTok)
-         where
-             float = P.float lexer
-
-keyWordTok :: String -> Parser ()
-keyWordTok name = P.reserved lexer name
-
-var :: Parser ()
-var = keyWordTok "var"
-
-def :: Parser ()
-def = keyWordTok "def"
-
-fun :: Parser ()
-fun = keyWordTok "fun"
-
-derived :: Parser ()
-derived = keyWordTok "derived"
-
-eq :: Parser ()
-eq = keyWordTok "eq"
-
-exprKWD :: Parser ()
-exprKWD = keyWordTok "expr"
-
-ident :: Parser String
-ident = P.identifier lexer
-
-combineSS :: SS -> SS -> SS
-combineSS ss1 ss2 = SourceSpan (beg ss1) (end ss2)
 
 combineExprSS :: Expr SS -> Expr SS -> SS
 combineExprSS e1 e2 = combineSS (getTag e1) (getTag e2)
@@ -118,28 +44,55 @@ exprParsers = [annot, sumDiff, prodQuot, power, uminus, app, atom]
 expr :: Parser (Expr SS)
 expr = foldr (\ep p -> ep p) (error "you will never arrive at the truth") (cycle exprParsers)
 
+parseExpr :: String -> Either ParseError (Expr SS)
+parseExpr source = parse (expr <* eof) "" source
 
 annot :: ExprParser
-annot = _
+annot child = do
+    ((e, u), ss) <- wrapSS $ do
+        e <- child
+        () <- annotTok
+        u <- unit
+        return (e, u)
+    return (Annot e u ss)
 
 sumDiff :: ExprParser
-sumDiff = _
+sumDiff child = chainl1 child (plus <|> minus) <?> "sum/difference"
 
 prodQuot :: ExprParser
-prodQuot = _
+prodQuot child = chainl1 child (times <|> divide) <?> "product/quotient"
 
 power :: ExprParser
-power = _
+power child = chainl1 child pow <?> "exponentiation"
 
 uminus :: ExprParser
-uminus = _
+uminus child =  try child -- TODO eliminate with (unsigned) natFloat and always uminus for negatives
+            <|> (uncurry (Prim1 Negate) <$> wrapSS (minusTok >> child))
+            <?> "unary minus"
 
 app :: ExprParser
-app = _
+app child = do
+        (name, ss) <- wrapSS ident
+        -- parses (e1,e2,...)
+        let args = do
+            (es, ss') <- wrapSS . inParens $ sepBy1 child commaTok
+            return (App name es (combineSS ss ss'))
+        args <|> return (Var name ss)
+    <|> child
+    <?> "function application"
 
+-- TODO combine double and int into one branching parser to avoid this try (maybe use natFloat and rely on uminus)
 atom :: ExprParser
-atom = _
-
+atom child =  try double -- try is necessary because -11 would fail double and consume input
+    <|> int
+    <|> variable
+    <|> paren
+    <?> "atomic or parenthesized expression"
+    where
+        paren :: Parser (Expr SS)
+        paren = do
+            (e, ss) <- wrapSS . inParens $ child
+            return (Parens e ss)
 
 double :: Parser (Expr SS)
 double = do
@@ -158,3 +111,5 @@ variable = do
     (name, ss) <- wrapSS ident
     return (Var name ss)
     <?> "variable"
+
+unit = undefined

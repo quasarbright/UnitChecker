@@ -2,9 +2,10 @@ module Lib
     ( someFunc
     ) where
 
+import StateTPractice
+import ArrowsPractice
 import Exprs
 import Check
-import StateTPractice
 import Parsing
 
 someFunc :: IO ()
