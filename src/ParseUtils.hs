@@ -1,15 +1,13 @@
-module parseUtils where
+module ParseUtils where
 
 import Text.ParserCombinators.Parsec hiding (many, (<|>))
 import qualified Text.Parsec.Token as P
 import Control.Applicative hiding (Const)
 import Data.Functor
 import qualified Data.Functor.Identity
-import Text.Parsec.Pos
-import Exprs
-import Control.Monad
 
-data SourceSpan = SourceSpan {beg::SourcePos, end::SourcePos}
+data SourceSpan = SourceSpan {beg::SourcePos, end::SourcePos} deriving(Eq, Ord)
+
 type SS = SourceSpan
 instance Show SourceSpan where
     show ss = name++" "++show startLine++":"++show startCol++"-"++show endLine++show endCol where
@@ -41,10 +39,10 @@ lexer = P.makeTokenParser lang
 -- decorates a parser with the source span over the entirety of the parse
 wrapSS :: Parser a -> Parser (a, SS)
 wrapSS p = do
-    beg <- getPosition
+    beginning <- getPosition
     a <- p
-    end <- getPosition
-    return (a, SourceSpan beg end)
+    ending <- getPosition
+    return (a, SourceSpan beginning ending)
 
 inParens :: Parser a -> Parser a
 inParens = P.parens lexer

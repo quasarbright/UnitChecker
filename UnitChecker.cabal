@@ -27,11 +27,12 @@ source-repository head
 
 library
   exposed-modules:
-      ArrowsPractice
       Check
       Exprs
       Lib
-      Parsing
+      ParseExpr
+      ParseUnit
+      ParseUtils
       StateTPractice
   other-modules:
       Paths_UnitChecker

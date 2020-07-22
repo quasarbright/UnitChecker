@@ -2,11 +2,10 @@ module Lib
     ( someFunc
     ) where
 
-import StateTPractice
-import ArrowsPractice
 import Exprs
 import Check
-import Parsing
+import ParseExpr
+import ParseUnit
 
 someFunc :: IO ()
 someFunc = putStrLn "someFunc"

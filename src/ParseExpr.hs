@@ -1,14 +1,13 @@
-module Parsing(expr, parseExpr) where
+module ParseExpr(expr, parseExpr) where
 
 import Text.ParserCombinators.Parsec hiding (many, (<|>))
 import qualified Text.Parsec.Token as P
 import Control.Applicative hiding (Const)
 import Data.Functor
 import qualified Data.Functor.Identity
-import Text.Parsec.Pos
 import Exprs
-import Control.Monad
 import ParseUtils
+import ParseUnit
 
 
 combineExprSS :: Expr SS -> Expr SS -> SS
@@ -45,7 +44,7 @@ expr :: Parser (Expr SS)
 expr = foldr (\ep p -> ep p) (error "you will never arrive at the truth") (cycle exprParsers)
 
 parseExpr :: String -> Either ParseError (Expr SS)
-parseExpr source = parse (expr <* eof) "" source
+parseExpr source = parse (P.whiteSpace lexer *> expr <* eof) "" source
 
 annot :: ExprParser
 annot child = do
@@ -75,8 +74,8 @@ app child = do
         (name, ss) <- wrapSS ident
         -- parses (e1,e2,...)
         let args = do
-            (es, ss') <- wrapSS . inParens $ sepBy1 child commaTok
-            return (App name es (combineSS ss ss'))
+                (es, ss') <- wrapSS . inParens $ sepBy1 child commaTok
+                return (App name es (combineSS ss ss'))
         args <|> return (Var name ss)
     <|> child
     <?> "function application"
@@ -111,5 +110,3 @@ variable = do
     (name, ss) <- wrapSS ident
     return (Var name ss)
     <?> "variable"
-
-unit = undefined
