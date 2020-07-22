@@ -28,8 +28,8 @@ instance Show a => Show (Error a) where
         | isDimensionless actual = "Unit mismatch: expected units of "++show expected++", but got a dimensionless quantity at "++show a
         | otherwise = "Unit mismatch: Expected units of "++show expected++", but got units of "++show actual++" at "++show a
     show (ArityError name expected actual a) = "Arity error: function "++show name++" expects "++show expected++" arguments, but "++show actual++" arguments were given at "++show a
-    show (IrrationalDimensionlessExponent e a) = "The exponent of a quantity with units must be obviously rational. Exponent "++show e++" is not obviously rational. Try simplifying. At "++show a
-    show (IndivisibleRationalDimensionLessExponent base power pq a) = "Unable to exponentiate unit "++show base++"^"++show power++" to the power "++show p++"/"++show q++" since "++show base++"*"++show p++" is not divisible by "++show q++". At "++show a
+    show (IrrationalDimensionlessExponent e a) = "The exponent of a quantity with units must be a ratio of two integers. Exponent "++show e++" is not a ratio of two integers. You might need to simplify. At "++show a
+    show (IndivisibleRationalDimensionLessExponent base power pq a) = "Unable to exponentiate unit ["++show base++"^"++show power++"] to the power "++show p++"/"++show q++" since "++show power++"*"++show p++" is not divisible by "++show q++". At "++show a
         where
             p = numerator pq
             q = denominator pq
@@ -73,6 +73,7 @@ initialEnv a =
     |> addVar "pi" dimensionless
     |> addVar "e" dimensionless
     |> addFun "sin" (Signature [dimensionless] dimensionless a)
+    |> addFun "cos" (Signature [dimensionless] dimensionless a)
     |> addFun "exp" (Signature [dimensionless] dimensionless a)
 
 initialWFEnv :: ([String], [String], [String])
