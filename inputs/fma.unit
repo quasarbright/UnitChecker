@@ -1,13 +1,13 @@
-derived N = [kg m s^ -2];
+derived N = [kg m s^ -2]
 
-var m :: [kg];
+var m :: [kg]
 
-var a :: [m s^ -2];
+var a :: [m s^ -2]
 
-def F = m * a ;
+def F = m * a 
 
-var dp :: [kg m s^ -1];
+var dp :: [kg m s^ -1]
 
-var t :: [s];
+var t :: [s]
 
-eq F = dp * t;
+eq F = dp * t
