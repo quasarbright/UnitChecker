@@ -4,7 +4,6 @@ import Text.ParserCombinators.Parsec hiding (many, (<|>))
 import qualified Text.Parsec.Token as P
 import Control.Applicative hiding (Const)
 import Data.Functor
-import qualified Data.Functor.Identity
 import Exprs
 import ParseUtils
 import ParseUnit

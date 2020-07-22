@@ -2,6 +2,7 @@ module ParseUtils where
 
 import Text.ParserCombinators.Parsec hiding (many, (<|>))
 import qualified Text.Parsec.Token as P
+import Text.Parsec.Pos
 import Control.Applicative hiding (Const)
 import Data.Functor
 import qualified Data.Functor.Identity
@@ -10,14 +11,14 @@ data SourceSpan = SourceSpan {beg::SourcePos, end::SourcePos} deriving(Eq, Ord)
 
 type SS = SourceSpan
 instance Show SourceSpan where
-    show ss = name++" "++show startLine++":"++show startCol++"-"++show endLine++show endCol where
+    show ss = name++":"++show startLine++":"++show startCol++"-"++show endLine++show endCol where
         name = sourceName (beg ss)
         startLine = sourceLine (beg ss)
         startCol = sourceColumn (beg ss)
         endLine = sourceLine (end ss)
         endCol = sourceColumn (end ss)
--- dummySS :: SourceSpan
--- dummySS = SourceSpan (newPos "" 0 0) (newPos "" 0 0)
+dummySS :: SourceSpan
+dummySS = SourceSpan (newPos "<prelude>" 0 0) (newPos "<prelude>" 0 0)
 
 lang :: P.GenLanguageDef String () Data.Functor.Identity.Identity
 lang = P.LanguageDef{
@@ -43,6 +44,9 @@ wrapSS p = do
     a <- p
     ending <- getPosition
     return (a, SourceSpan beginning ending)
+
+wrapSSWith :: (a -> SS -> b) -> Parser a -> Parser b
+wrapSSWith f p = uncurry f <$> wrapSS p
 
 inParens :: Parser a -> Parser a
 inParens = P.parens lexer

@@ -213,8 +213,10 @@ assertSameUnit a b tag = do
         return (a' /= b')
     when unequal (lift $ Left $ Mismatch a b tag)
 
-checkProgramWith :: Ord a => a -> Program a -> Either [Error a] ()
+-- | check the program with the given dummy tag for items of the initial environment and return the final environment.
+--   This might be a source span <prelude>:0:0-0:0, for example
+checkProgramWith :: Ord a => a -> Program a -> Either [Error a] (TyEnv a)
 checkProgramWith dummy p = do
     let (errs, _) = checkWellFormedness p
     unless (null errs) (Left errs)
-    either (Left . return) Right (evalStateT (typeCheckProgramEnv p) (initialEnv dummy))
+    either (Left . return) Right (execStateT (typeCheckProgramEnv p) (initialEnv dummy))

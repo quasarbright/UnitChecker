@@ -5,7 +5,6 @@ import Exprs
 import Text.ParserCombinators.Parsec hiding (many, (<|>))
 import qualified Text.Parsec.Token as P
 import Control.Applicative hiding (Const)
-import Data.Functor
 import qualified Data.Maybe as Maybe
 
 baseOfString :: String -> SS -> BaseUnit SS
@@ -24,7 +23,7 @@ baseOfString s = Maybe.fromMaybe (Derived s) (lookup s siMap)
 
 -- m
 base :: Parser (BaseUnit SS)
-base = uncurry baseOfString <$> wrapSS ident
+base = uncurry baseOfString <$> wrapSS ident <?> "base unit"
 
 powTok :: Parser ()
 powTok = P.reservedOp lexer "^"
@@ -42,7 +41,7 @@ basePow = do
 
 -- [kg m s^-1]
 unit :: Parser (Unit SS)
-unit = fromBasesList <$> P.brackets lexer (many basePow)
+unit = fromBasesList <$> P.brackets lexer (many basePow) <?> "unit"
 
 parseUnit :: String -> Either ParseError (Unit SS)
 parseUnit = parse (P.whiteSpace lexer *> unit <* eof) ""

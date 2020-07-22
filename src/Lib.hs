@@ -1,11 +1,10 @@
-module Lib
-    ( someFunc
-    ) where
+module Lib(checkProgram, parseProgram) where
 
 import Exprs
 import Check
-import ParseExpr
-import ParseUnit
+import ParseProgram
+import ParseUtils
 
-someFunc :: IO ()
-someFunc = putStrLn "someFunc"
+-- | type checks a program and returns the final type environment
+checkProgram :: Program SS -> Either [Error SS] (TyEnv SS)
+checkProgram = checkProgramWith dummySS
