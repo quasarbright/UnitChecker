@@ -28,10 +28,10 @@ lang = P.LanguageDef{
     P.nestedComments = True,
     P.identStart = letter <|> char '_' :: Parser Char,
     P.identLetter = letter <|> digit <|> char '_',
-    P.opStart = oneOf ":!#$%&*+.,/<=>?@\\^|-~",
-    P.opLetter = oneOf ":!#$%&*+.,/<=>?@\\^|-~",
+    P.opStart = oneOf ":!#$%&*+.,/<=>?@\\^|-~;",
+    P.opLetter = oneOf ":!#$%&*+.,/<=>?@\\^|-~;",
     P.reservedNames = ["var", "def", "fun", "expr", "eq", "derived"],
-    P.reservedOpNames = ["+", "-", "*", "/", "^", "=", "::", ","],
+    P.reservedOpNames = ["+", "-", "*", "/", "^", "=", "::", ",", ";"],
     P.caseSensitive = True}
 
 lexer :: P.GenTokenParser String () Data.Functor.Identity.Identity

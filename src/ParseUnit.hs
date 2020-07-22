@@ -30,6 +30,7 @@ powTok = P.reservedOp lexer "^"
 
 -- m   or    m^2
 -- optional ^n
+-- TODO special case for ^- bc parsec thinks it's one operator? or just force user to put spaces, or figure out a way to only allow length-1-operators
 basePow :: Parser (BaseUnit SS, Int)
 basePow = do
     b <- base

@@ -97,8 +97,8 @@ checkExprWellFormedness env@(deriveds, vars, funs) e =
         recurse = checkExprWellFormedness env
 --                                        deriveds, vars,     funs
 checkWellFormedness :: Program a -> ([Error a], ([String], [String], [String]))
-checkWellFormedness (Program statements) = foldr go ([], ([], [], [])) statements where
-    go statement (errs, env@(deriveds, vars, funs)) = case statement of
+checkWellFormedness (Program statements) = foldl go ([], ([], [], [])) statements where
+    go (errs, env@(deriveds, vars, funs)) statement = case statement of
         VarDeclStatement vd@(VarDecl name _ _) _ -> (errs++checkVarDecl deriveds vd, (deriveds, name:vars, funs))
         DerivedDeclStatement dd@(DerivedDecl name _ _) _ -> (errs++checkDerivedDecl deriveds dd, (name:deriveds, vars, funs))
         ExprStatement e _ -> (errs++checkExprWellFormedness env e, env)

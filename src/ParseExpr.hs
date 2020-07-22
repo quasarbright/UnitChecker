@@ -47,12 +47,21 @@ parseExpr source = parse (P.whiteSpace lexer *> expr <* eof) "" source
 
 annot :: ExprParser
 annot child = do
-    ((e, u), ss) <- wrapSS $ do
-        e <- child
-        () <- annotTok
-        u <- unit
-        return (e, u)
-    return (Annot e u ss)
+    -- ((e, u), ss) <- wrapSS $ do
+    --     e <- child
+    --     () <- annotTok
+    --     u <- unit
+    --     return (e, u)
+    -- return (Annot e u ss)
+    beginning <- getPosition
+    e <- child
+    -- optional annotation
+    let annotation = do
+            () <- annotTok
+            u <- unit
+            ending <- getPosition
+            return (Annot e u (SourceSpan beginning ending))
+    annotation <|> return e <?> "annotated expression"
 
 sumDiff :: ExprParser
 sumDiff child = chainl1 child (plus <|> minus) <?> "sum/difference"
