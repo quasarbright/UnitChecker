@@ -4,6 +4,8 @@ import System.Environment
 import System.IO
 import Lib
 
+-- TODO repl
+-- TODO release packaged binaries on github
 
 main :: IO ()
 main = do

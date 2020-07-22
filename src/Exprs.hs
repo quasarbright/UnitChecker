@@ -186,6 +186,7 @@ instance Show (Equation a) where
     show (Equation left right _) = show left++" = "++show right
 
 -- TODO maybe just get rid of VarDecl and friends
+-- TODO add monomorphic function declaration
 -- Just have VarDecl be a Statement case instead of its own type
 data Statement a = ExprStatement (Expr a) a
                  | EqnStatement (Equation a) a
