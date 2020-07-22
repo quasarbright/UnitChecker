@@ -1,0 +1,5 @@
+var m :: [kg]
+var v :: [m s^-1]
+def p = m*v
+eq (1/2) * m * v^2 = p^2 / (2*m)
+def KE = (1/2) * m * v^2
