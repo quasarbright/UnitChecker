@@ -4,14 +4,13 @@ import Text.ParserCombinators.Parsec hiding (many, (<|>))
 import qualified Text.Parsec.Token as P
 import Text.Parsec.Pos
 import Control.Applicative hiding (Const)
-import Data.Functor
 import qualified Data.Functor.Identity
 
 data SourceSpan = SourceSpan {beg::SourcePos, end::SourcePos} deriving(Eq, Ord)
 
 type SS = SourceSpan
 instance Show SourceSpan where
-    show ss = name++":"++show startLine++":"++show startCol++"-"++show endLine++show endCol where
+    show ss = name++":"++show startLine++":"++show startCol++"-"++show endLine++":"++show endCol where
         name = sourceName (beg ss)
         startLine = sourceLine (beg ss)
         startCol = sourceColumn (beg ss)
@@ -28,8 +27,8 @@ lang = P.LanguageDef{
     P.nestedComments = True,
     P.identStart = letter <|> char '_' :: Parser Char,
     P.identLetter = letter <|> digit <|> char '_',
-    P.opStart = oneOf ":!#$%&*+.,/<=>?@\\^|-~;",
-    P.opLetter = oneOf ":!#$%&*+.,/<=>?@\\^|-~;",
+    P.opStart = oneOf "+-*/^=:,;",
+    P.opLetter = oneOf ":",
     P.reservedNames = ["var", "def", "fun", "expr", "eq", "derived"],
     P.reservedOpNames = ["+", "-", "*", "/", "^", "=", "::", ",", ";"],
     P.caseSensitive = True}
@@ -52,17 +51,7 @@ inParens :: Parser a -> Parser a
 inParens = P.parens lexer
 
 intTok :: Parser Int
-intTok = char '-' $> negate <*> go
-      <|> go
-      where
-          go = fromIntegral <$> P.integer lexer
-
-doubleTok :: Parser Double
-doubleTok = try (char '-' $> negate <*> float)
-         <|> try float
-         <|> (fromIntegral <$> intTok)
-         where
-             float = P.float lexer
+intTok = fromInteger <$> P.integer lexer
 
 keyWordTok :: String -> Parser ()
 keyWordTok name = P.reserved lexer name

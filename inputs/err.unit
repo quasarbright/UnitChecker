@@ -1,0 +1,7 @@
+var m :: [kg]
+
+var a :: [m s^ -2]
+
+def F = m * a 
+
+expr F + m

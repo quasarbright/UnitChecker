@@ -31,7 +31,6 @@ divide = wrapPrim2 Divide
 pow :: Parser (Expr SS -> Expr SS -> Expr SS)
 pow = wrapPrim2 Pow
 
--- TODO circular parser loop with a list
 type ExprParser = Parser (Expr SS) -> Parser (Expr SS)
 
 exprParsers :: [ExprParser]
@@ -62,6 +61,7 @@ annot child = do
             ending <- getPosition
             return (Annot e u (SourceSpan beginning ending))
     annotation <|> return e <?> "annotated expression"
+    -- TODO expr E :: J says expected statement instead of expected unit
 
 sumDiff :: ExprParser
 sumDiff child = chainl1 child (plus <|> minus) <?> "sum/difference"
@@ -73,8 +73,8 @@ power :: ExprParser
 power child = chainl1 child pow <?> "exponentiation"
 
 uminus :: ExprParser
-uminus child =  try child -- TODO eliminate with (unsigned) natFloat and always uminus for negatives
-            <|> (uncurry (Prim1 Negate) <$> wrapSS (minusTok >> child))
+uminus child =  (uncurry (Prim1 Negate) <$> wrapSS (minusTok >> uminus child))
+            <|> child
             <?> "unary minus"
 
 app :: ExprParser
@@ -88,10 +88,8 @@ app child = do
     <|> child
     <?> "function application"
 
--- TODO combine double and int into one branching parser to avoid this try (maybe use natFloat and rely on uminus)
 atom :: ExprParser
-atom child =  try double -- try is necessary because -11 would fail double and consume input
-    <|> int
+atom child = number
     <|> variable
     <|> paren
     <?> "atomic or parenthesized expression"
@@ -101,17 +99,24 @@ atom child =  try double -- try is necessary because -11 would fail double and c
             (e, ss) <- wrapSS . inParens $ child
             return (Parens e ss)
 
-double :: Parser (Expr SS)
-double = do
-    (d, ss) <- wrapSS doubleTok
-    return (DoubleExpr d ss)
-    <?> "double"
+number :: Parser (Expr SS)
+number = do
+    ne <- wrapSS $ P.naturalOrFloat lexer
+    case ne of
+        (Left i, ss) -> return $ IntExpr (fromInteger i) ss
+        (Right d, ss) -> return $ DoubleExpr d ss
 
-int :: Parser (Expr SS)
-int = do
-    (n, ss) <- wrapSS intTok
-    return (IntExpr n ss)
-    <?> "integer"
+-- double :: Parser (Expr SS)
+-- double = do
+--     (d, ss) <- wrapSS doubleTok
+--     return (DoubleExpr d ss)
+--     <?> "double"
+
+-- int :: Parser (Expr SS)
+-- int = do
+--     (n, ss) <- wrapSS intTok
+--     return (IntExpr n ss)
+--     <?> "integer"
 
 variable :: Parser (Expr SS)
 variable = do

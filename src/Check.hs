@@ -64,6 +64,12 @@ initialEnv a =
     |> addFun "sin" (Signature [dimensionless] dimensionless a)
     |> addFun "exp" (Signature [dimensionless] dimensionless a)
 
+initialWFEnv :: ([String], [String], [String])
+initialWFEnv = ( Map.keys $ derivedMap (initialEnv ())
+               , Map.keys $ varMap (initialEnv ())
+               , Map.keys $ funMap (initialEnv ())
+               )
+
 getUnitFreeVars :: Unit a -> [(String, a)]
 getUnitFreeVars unit = dNames where
     dNames =  Maybe.catMaybes $ getDName <$> Map.keys (bases unit)
@@ -97,7 +103,7 @@ checkExprWellFormedness env@(deriveds, vars, funs) e =
         recurse = checkExprWellFormedness env
 --                                        deriveds, vars,     funs
 checkWellFormedness :: Program a -> ([Error a], ([String], [String], [String]))
-checkWellFormedness (Program statements) = foldl go ([], ([], [], [])) statements where
+checkWellFormedness (Program statements) = foldl go ([], initialWFEnv) statements where
     go (errs, env@(deriveds, vars, funs)) statement = case statement of
         VarDeclStatement vd@(VarDecl name _ _) _ -> (errs++checkVarDecl deriveds vd, (deriveds, name:vars, funs))
         DerivedDeclStatement dd@(DerivedDecl name _ _) _ -> (errs++checkDerivedDecl deriveds dd, (name:deriveds, vars, funs))

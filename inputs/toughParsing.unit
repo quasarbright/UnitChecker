@@ -1,0 +1,7 @@
+var m :: [kg]
+var a :: [m s^-2]
+expr m*-a
+eq 1--2 = ----3
+expr m^2^-2
+expr --2^-0.99
+expr -(2 + 1)

@@ -17,15 +17,12 @@ parseProgram = parse (P.whiteSpace lexer *> program <* eof)
 eqTok :: Parser ()
 eqTok = P.reservedOp lexer "="
 
-semiTok :: Parser ()
-semiTok = P.reservedOp lexer ";"
-
 statement :: Parser (Statement SS)
-statement =  varDecl -- <* semiTok
-         <|> try exprStatement -- <* semiTok -- TODO eliminate try by changing expr keyword to something that doesn't start with an e
-         <|> eqn -- <* semiTok
-         <|> try derivedDecl -- <* semiTok -- TODO eliminate try by changing derived/def keyword. use let for def
-         <|> varDef -- <* semiTok
+statement =  varDecl
+         <|> exprStatement
+         <|> eqn
+         <|> derivedDecl
+         <|> varDef
          <?> "statement"
 
 varDecl :: Parser (Statement SS)
