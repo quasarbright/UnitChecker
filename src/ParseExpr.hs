@@ -70,7 +70,7 @@ prodQuot :: ExprParser
 prodQuot child = chainl1 child (times <|> divide) <?> "product/quotient"
 
 power :: ExprParser
-power child = chainl1 child pow <?> "exponentiation"
+power child = chainr1 child pow <?> "exponentiation"
 
 uminus :: ExprParser
 uminus child =  (uncurry (Prim1 Negate) <$> wrapSS (minusTok >> uminus child))
@@ -82,7 +82,8 @@ app child = do
         (name, ss) <- wrapSS ident
         -- parses (e1,e2,...)
         let args = do
-                (es, ss') <- wrapSS . inParens $ sepBy1 child commaTok
+                -- TODO figure out a way to not have to parse a whole expr
+                (es, ss') <- wrapSS . inParens $ sepBy1 expr commaTok
                 return (App name es (combineSS ss ss'))
         args <|> return (Var name ss)
     <|> child
