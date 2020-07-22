@@ -1,0 +1,2 @@
+var F :: [N]
+expr F ^ pi // can't raise Newtons to an irrational power

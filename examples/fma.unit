@@ -1,0 +1,97 @@
+// this is a comment
+
+/*
+this is a
+multiline comment
+*/
+
+// declares Newtons as a derived unit (Newtons are already in the prelude)
+derived N = [kg m s^-2]
+
+/*
+derived units are products of SI (or other derived) units raised to integer powers
+all units are written inside of square braces []
+*/
+
+
+// derived units can be used like SI units after they're defined
+derived J = [N m]
+
+// Joules are also defined in the prelude
+
+
+derived MyUnit = [m^2 s kg^-2]
+
+
+// declares the units of the variable m to be kilograms
+var m :: [kg]
+
+// declares the units of the variable a to be m / s^2
+var a :: [m s^-2]
+
+// defines the variable F to be equal to m * a and infers its units (it'll infer [kg m s^-2])
+def F = m * a
+
+
+// defines F_newtons to be equal to m*a, but in Newtons, rather than the inferred [kg m s^-2]
+// also checks to make sure m*a has units equivalent to Newtons
+def F_newtons = (m * a :: [N])
+
+// you can annotate any expression with units
+
+
+// change in momentum
+var dp :: [kg m s^-1]
+
+// change in time
+var dt :: [s]
+
+// declares an equation
+// checks the units of both sides and makes sure they're equivalent
+eq m*a = dp/dt
+
+// equations only check units. They know nothing about values
+eq m*a = 2*dp/dt
+
+// [N] is equivalent to [kg m s^-2] so this is fine
+eq F_newtons = F
+
+
+// checks that the expression doesn't violate unit laws
+expr F_newtons + F - m*a + dp/dt + (F^2)^(1/2)
+
+var f :: [hz] // hz is [s^-2] (defined in prelude)
+var t :: [s] // time
+
+// cos has signature ([]) -> [] so the argument units better cancel out
+def x = cos(t * 2*pi*f)
+
+// pi :: [] is defined in the prelude
+
+// exp has signature ([]) -> [] as well
+eq exp(2) = e^2
+
+// e :: [] is defined in the prelude
+
+
+// you can annotate constants with units inline
+def Fg = m * (9.8 :: [m s^-2])
+eq F = Fg
+
+/*
+Running a program outputs newly defined variables and derived units with their corresponding types.
+This example program outputs the following:
+MyUnit = [kg^-2 m^2 s]
+F :: [kg m s^-2]
+F_newtons :: [N]
+Fg :: [kg m s^-2]
+a :: [m s^-2]
+dp :: [kg m s^-1]
+dt :: [s]
+f :: [hz]
+m :: [kg]
+t :: [s]
+x :: []
+
+note that since [N] and [J] are defined in the prelude and weren't defined differently, they do not appear in the output
+*/

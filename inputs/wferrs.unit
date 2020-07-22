@@ -1,4 +1,0 @@
-var F :: [N]
-eq F = m*a
-eq Fg = m*g :: [units]
-expr tan(2)
