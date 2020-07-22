@@ -10,12 +10,19 @@ type Map k v = Map.Map k v
 
 -- TODO rm radians
 -- | SI units + radians + derived
-data BaseUnit a = Meter a | Second a | Kilogram a | Ampere a | Kelvin a | Mole a | Candela a | Radian a | Derived String a deriving(Ord)
+data BaseUnit a = Meter a | Second a | Kilogram a | Ampere a | Kelvin a | Mole a | Candela a | Radian a | Derived String a
 
 instance Eq (BaseUnit a) where
     (Derived name1 _) == (Derived name2 _) = name1 == name2
     -- jank, but I don't want to write all those cases and it works
     base1 == base2 = show base1 == show base2
+
+instance Ord (BaseUnit a) where
+    compare (Derived name1 _) (Derived name2 _) = compare name1 name2
+    compare Derived{} _ = GT
+    compare _ Derived{} = LT
+    -- again jank, but works and saves cases
+    compare si1 si2 = compare (show si1) (show si2)
 
 instance Show (BaseUnit a) where
     show Meter{} = "m"
@@ -28,7 +35,6 @@ instance Show (BaseUnit a) where
     show Radian{} = "rad"
     show (Derived name _) = name
 
--- TODO units need an a
 -- | map from base units to their exponents
 newtype Unit a = Unit (Map (BaseUnit a) Int) deriving(Eq, Ord)
 
