@@ -33,7 +33,7 @@ instance Show (BaseUnit a) where
 newtype Unit a = Unit (Map (BaseUnit a) Int) deriving(Eq, Ord)
 
 instance Show (Unit a) where
-    show u = unwords $ showPair <$> Map.toList (bases u) where
+    show u = "["++unwords (showPair <$> Map.toList (bases u))++"]" where
         showPair (base, power) = show base++"^"++show power
 
 data Signature a = Signature [Unit a]  (Unit a) a deriving(Eq, Ord)
