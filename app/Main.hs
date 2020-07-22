@@ -22,4 +22,4 @@ go filePath source = case parseProgram filePath source of
     Right prog ->
         case checkProgram prog of
             Left errs -> sequence_ (print <$> errs)
-            Right _ -> putStrLn "all good!"
+            Right env -> print env

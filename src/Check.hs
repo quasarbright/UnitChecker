@@ -8,6 +8,7 @@ import Control.Monad.Trans.State.Lazy
 import Control.Monad.Trans.Class
 import Control.Monad
 import Data.Functor.Identity
+import Data.List
 
 data Error a = UnboundDerived String a
              | UnboundVar String a
@@ -34,6 +35,16 @@ instance Show a => Show (Error a) where
             q = denominator pq
 
 data TyEnv a = TyEnv {derivedMap :: Map String (Unit a), varMap :: Map String (Unit a), funMap :: Map String (Signature a)}
+
+instance Show (TyEnv a) where
+    show env = intercalate "\n" (deriveds ++ vars ++ funs)
+        where
+            deriveds = showMap " = " (derivedMap env)
+            vars = showMap " :: " (varMap env)
+            funs = showMap " :: " (funMap env)
+            showMap sep m = showPair sep <$> Map.toList m
+            showPair sep (name, val) = name++sep++show val
+
 emptyEnvironment :: TyEnv a
 emptyEnvironment = TyEnv {derivedMap=Map.empty, varMap=Map.empty, funMap=Map.empty}
 
