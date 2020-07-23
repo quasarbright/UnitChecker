@@ -13,7 +13,7 @@ import Check
 import ParseUtils(SS, dummySS)
 import Exprs
 
--- TODO repl
+-- TODO argparse for something like check -i fma.unit
 -- TODO release packaged binaries on github
 
 main :: IO ()

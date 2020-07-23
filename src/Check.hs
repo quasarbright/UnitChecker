@@ -35,7 +35,6 @@ instance Show a => Show (Error a) where
             p = numerator pq
             q = denominator pq
 
--- TODO map to (a, Int) instead of just a so can distinguish between overridden definitions with the same value
 -- the count is the next available count. used to keep track of versioning of names
 data TyEnv a = TyEnv {derivedMap :: Map String (Unit a, Int), varMap :: Map String (Unit a, Int), funMap :: Map String (Signature a, Int), count :: Int}
 
