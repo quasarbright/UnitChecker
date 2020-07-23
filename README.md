@@ -12,6 +12,7 @@ For an example displaying the syntax and all the features, see `examples/fma.uni
 * declare a variable's units and use it in expressions
 * define a variable to infer its units, then use it in expressions
 * common derived units (i.e. `N = [kg m s^-2]`), variables (i.e. `g :: [m s^-2]`), and functions (i.e. `sin :: ([]) -> []`) are included in prelude
+* has a REPL
 
 ## Examples
 More detailed examples can be found in the `examples` directory. `examples/fma.unit` is a particularly good example of all features and syntax
@@ -97,6 +98,7 @@ if you are running from source, use `stack run` or `stack exec UnitChecker-exe`:
 ```
 stack run path/to/file.unit
 ```
+To run the REPL, just run without specifying a file
 ## dependencies
 * parsec
 * containers
