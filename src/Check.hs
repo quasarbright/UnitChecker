@@ -36,37 +36,50 @@ instance Show a => Show (Error a) where
             q = denominator pq
 
 -- TODO map to (a, Int) instead of just a so can distinguish between overridden definitions with the same value
-data TyEnv a = TyEnv {derivedMap :: Map String (Unit a), varMap :: Map String (Unit a), funMap :: Map String (Signature a)}
+-- the count is the next available count. used to keep track of versioning of names
+data TyEnv a = TyEnv {derivedMap :: Map String (Unit a, Int), varMap :: Map String (Unit a, Int), funMap :: Map String (Signature a, Int), count :: Int}
 
 instance Show (TyEnv a) where
-    show env = intercalate "\n" (deriveds ++ vars ++ funs)
+    show env =
+        [deriveds, vars, funs]
+        |> concat
+        |> sortOn snd
+        |> fmap fst
+        |> unlines
         where
-            deriveds = showMap " = " (derivedMap env)
-            vars = showMap " :: " (varMap env)
-            funs = showMap " :: " (funMap env)
-            showMap sep m = showPair sep <$> Map.toList m
+            deriveds = mapToVersionedLines " = " (derivedMap env)
+            vars = mapToVersionedLines " :: " (varMap env)
+            funs = mapToVersionedLines " :: " (funMap env)
+            mapToVersionedLines sep m = --showPair sep . swap . unassoc <$> Map.toList m
+                Map.toList m
+                |> fmap unassoc
+                |> fmap (\(ab,n) -> (showPair sep ab, n))
+            unassoc (a, (b, c)) = ((a, b), c)
             showPair sep (name, val) = name++sep++show val
 
 emptyEnvironment :: TyEnv a
-emptyEnvironment = TyEnv {derivedMap=Map.empty, varMap=Map.empty, funMap=Map.empty}
+emptyEnvironment = TyEnv {derivedMap=Map.empty, varMap=Map.empty, funMap=Map.empty, count = 0}
+
+_inc :: TyEnv a -> TyEnv a
+_inc env = env{count=count env+1}
 
 addDerived :: Ord a => String -> Unit a -> TyEnv a -> TyEnv a
-addDerived name unit env = env{derivedMap=Map.insert name unit (derivedMap env)}
+addDerived name unit env = _inc env{derivedMap=Map.insert name (unit, count env) (derivedMap env)}
 
 lookupDerived :: Ord a => String -> TyEnv a -> Maybe (Unit a)
-lookupDerived name env = Map.lookup name (derivedMap env)
+lookupDerived name env = fst <$> Map.lookup name (derivedMap env)
 
 addVar :: Ord a => String -> Unit a -> TyEnv a -> TyEnv a
-addVar name unit env = env{varMap=Map.insert name unit (varMap env)}
+addVar name unit env = _inc env{varMap=Map.insert name (unit, count env) (varMap env)}
 
 lookupVar :: Ord a => String -> TyEnv a -> Maybe (Unit a)
-lookupVar name env = Map.lookup name (varMap env)
+lookupVar name env = fst <$> Map.lookup name (varMap env)
 
 addFun :: Ord a => String -> Signature a -> TyEnv a -> TyEnv a
-addFun name sig env = env{funMap=Map.insert name sig (funMap env)}
+addFun name sig env = _inc env{funMap=Map.insert name (sig, count env) (funMap env)}
 
 lookupFun :: Ord a => String -> TyEnv a -> Maybe (Signature a)
-lookupFun name env = Map.lookup name (funMap env)
+lookupFun name env = fst <$> Map.lookup name (funMap env)
 
 getNames :: Ord a => TyEnv a -> [String]
 getNames env = nub $ concat [Map.keys (varMap env),Map.keys (derivedMap env),Map.keys (funMap env)]
@@ -74,18 +87,20 @@ getNames env = nub $ concat [Map.keys (varMap env),Map.keys (derivedMap env),Map
 -- TODO make this use a tag-aware equality for units so redefining [N] gets exported
 -- | envDifference e' e returns the definitions in e' that aren't in e
 envDifference :: Ord a => TyEnv a -> TyEnv a -> TyEnv a
-envDifference e' e = e'{ varMap=varMap e' `mapDiff` varMap e
-                        , derivedMap=derivedMap e' `mapDiff` derivedMap e
-                        , funMap=funMap e' `mapDiff` funMap e
+envDifference e' e = e'{ varMap=mapFilter $ varMap e'
+                        , derivedMap=mapFilter $ derivedMap e'
+                        , funMap=mapFilter $ funMap e'
                         }
     where
-        mapDiff m' m = Map.differenceWith passIfNew m' m
-        passIfNew a' a
-            | a' == a = Nothing -- same thing, get rid of it
-            | otherwise = Just a'
+        c = count e
+        mapFilter m' = Map.filter (\(_,n') -> n' >= c) m'
+        -- mapDiff m' m = Map.differenceWith passIfNew m' m
+        -- passIfNew a' a
+        --     | a' == a = Nothing -- same thing, get rid of it
+        --     | otherwise = Just a'
 
 
-infixl 1 |>
+infixl 2 |>
 (|>) :: a -> (a -> b) -> b
 x |> f = f x
 
