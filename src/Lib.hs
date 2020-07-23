@@ -7,8 +7,4 @@ import ParseUtils
 
 -- | type checks a program and returns the final type environment
 checkProgram :: Program SS -> Either [Error SS] (TyEnv SS)
-checkProgram p = rmInitialsEnv <$> checkProgramWith dummySS p
-
-rmInitialsEnv :: TyEnv SS -> TyEnv SS
-rmInitialsEnv e = envDifference e ei
-    where ei = initialEnv dummySS
+checkProgram p = checkProgramWith dummySS p

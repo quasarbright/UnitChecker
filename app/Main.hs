@@ -32,53 +32,20 @@ runString filePath source = case parseProgram filePath source of
         case checkProgram prog of
             Left errs -> sequence_ (print <$> errs)
             Right env -> print (envDifference env (initialEnv dummySS))
-{--
-type Repl a = HaskelineT IO a
 
-cmd :: String -> Repl ()
-cmd input = liftIO $ runString "<stdin>" input
-
-completer :: Monad m => WordCompleter m
-completer n = do
-  let names = ["eq", "expr", "var", "def", "derived", "fun", ":help", ":list"]
-  return $ filter (isPrefixOf n) names
-
-
-help :: [String] -> Repl ()
-help _ = liftIO $ print "help" -- TODO help
-
-quit :: [String] -> Repl ()
-quit _ = abort
-
--- listEnv :: [String] -> Repl ()
--- listEnv _ = liftIO $ print env
-
-otherCommands :: [(String, [String] -> Repl ())]
-otherCommands = 
-    [ ("help", help)  -- :help
-    , ("q", quit)
-    , ("quit", quit)
-    ]
-
-ini :: Repl ()
-ini = liftIO $ putStrLn "Welcome to UnitChecker!" >> putStrLn "for help, use :help. to quit, use :q or :quit"
-
-repl :: IO ()
-repl = evalRepl (pure ">>> ") cmd otherCommands (Just ':') (Word completer) ini
---}
 type Repl a = HaskelineT (StateT (TyEnv SS) IO) a
 
 cmd :: String -> Repl ()
-cmd input =
+cmd input = do
+    env <- get
     case parseProgram "<stdin>" input of
         Left err -> liftIO $ hPrint stderr err
         Right prog ->
             case checkProgram prog of
                 Left errs -> liftIO $ sequence_ (print <$> errs)
                 Right env' -> do
-                    env <- get
-                    put (envDifference env' env)
-                    liftIO (print env)
+                    put env'
+                    liftIO (print (envDifference env' env))
 
 comp :: (Monad m, MonadState (TyEnv SS) m) => WordCompleter m
 comp n = do
@@ -100,13 +67,6 @@ listEnv :: [String] -> Repl ()
 listEnv _ = do
     env <- get
     liftIO (print env)
-
--- showVarUnits :: [String] -> Repl ()
--- showVarUnits [] = liftIO $ hPutStrLn stderr "no name provided to :units\nusage: :units x"
--- showVarUnits (x:_) = do
-    
-
-
 
 data Opt = Opt{ synonyms :: [String]
               , arguments :: [String]

@@ -35,6 +35,7 @@ instance Show a => Show (Error a) where
             p = numerator pq
             q = denominator pq
 
+-- TODO map to (a, Int) instead of just a so can distinguish between overridden definitions with the same value
 data TyEnv a = TyEnv {derivedMap :: Map String (Unit a), varMap :: Map String (Unit a), funMap :: Map String (Signature a)}
 
 instance Show (TyEnv a) where
@@ -71,17 +72,17 @@ getNames :: Ord a => TyEnv a -> [String]
 getNames env = nub $ concat [Map.keys (varMap env),Map.keys (derivedMap env),Map.keys (funMap env)]
 
 -- TODO make this use a tag-aware equality for units so redefining [N] gets exported
--- | envDifference e1 e2 returns the definitions in e2 that aren't in e1
+-- | envDifference e' e returns the definitions in e' that aren't in e
 envDifference :: Ord a => TyEnv a -> TyEnv a -> TyEnv a
-envDifference e1 e2 = e1{ varMap=varMap e1 `mapDiff` varMap e2
-                        , derivedMap=derivedMap e1 `mapDiff` derivedMap e2
-                        , funMap=funMap e1 `mapDiff` funMap e2
+envDifference e' e = e'{ varMap=varMap e' `mapDiff` varMap e
+                        , derivedMap=derivedMap e' `mapDiff` derivedMap e
+                        , funMap=funMap e' `mapDiff` funMap e
                         }
     where
-        mapDiff m1 m2 = Map.differenceWith passIfSame m1 m2
-        passIfSame a b
-            | a == b = Nothing -- this is the subtraction
-            | otherwise = Just a
+        mapDiff m' m = Map.differenceWith passIfNew m' m
+        passIfNew a' a
+            | a' == a = Nothing -- same thing, get rid of it
+            | otherwise = Just a'
 
 
 infixl 1 |>
@@ -183,10 +184,10 @@ typeSynth e = case e of
     IntExpr{} -> return dimensionless
     Var name a -> do
         env <- get
-        lift $ maybe (Left (UnboundVar name a)) Right (Map.lookup name (varMap env))
+        lift $ maybe (Left (UnboundVar name a)) Right (lookupVar name env)
     App f args a -> do
         env <- get
-        let Signature ins ret _ = Maybe.fromMaybe (error "unbound fun") (Map.lookup f (funMap env))
+        let Signature ins ret _ = Maybe.fromMaybe (error "unbound fun") (lookupFun f env)
         let expected = length ins
         let actual = length args
         -- arity check
@@ -242,7 +243,7 @@ flipEither (Left a) = Right a
 expandBaseUnit :: Ord a => BaseUnit a -> InfallibleEnvProcessor a (Unit a)
 expandBaseUnit (Derived name _) = do
     env <- get
-    expandUnit $ Maybe.fromMaybe (error "unbound derived") (Map.lookup name (derivedMap env))
+    expandUnit $ Maybe.fromMaybe (error "unbound derived") (lookupDerived name env)
 expandBaseUnit base = return $ fromBasesList [(base, 1)]
 
 -- | expands derived units to SI units and aggregates to one unit
