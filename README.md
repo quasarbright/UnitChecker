@@ -93,10 +93,6 @@ You can run a file like this:
 ```
 unitChecker path/to/file.unit
 ```
-You can also pipe from stdin:
-```
-cat path/to/file.unit | unitChecker
-```
 if you are running from source, use `stack run` or `stack exec UnitChecker-exe`:
 ```
 stack run path/to/file.unit

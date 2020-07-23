@@ -41,16 +41,21 @@ completer n = do
 help :: [String] -> Repl ()
 help _ = liftIO $ print "help" -- TODO help
 
+quit :: [String] -> Repl ()
+quit _ = abort
+
 -- listEnv :: [String] -> Repl ()
 -- listEnv _ = liftIO $ print env
 
 otherCommands :: [(String, [String] -> Repl ())]
-otherCommands = [
-    ("help", help)  -- :help
-  ]
+otherCommands = 
+    [ ("help", help)  -- :help
+    , ("q", quit)
+    , ("quit", quit)
+    ]
 
 ini :: Repl ()
-ini = liftIO $ putStrLn "Welcome!"
+ini = liftIO $ putStrLn "Welcome to UnitChecker!" >> putStrLn "for help, use :help. to quit, use :q or :quit"
 
 repl :: IO ()
 repl = evalRepl (pure ">>> ") cmd otherCommands (Just ':') (Word completer) ini

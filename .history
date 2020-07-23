@@ -1,5 +1,0 @@
-var x :: [N m]
-:q
-derived MyUnit = [kg^2 m^2]
-derived N = [kg m s^-2]
-:help
