@@ -1,11 +1,17 @@
+{-# Language FlexibleContexts #-}
 module Main where
 
 import System.Environment
 import System.IO
 import System.Console.Repline
 import Control.Monad.IO.Class
+import Control.Monad.Trans.State.Strict(StateT, evalStateT)
+import Control.Monad.State.Class
 import Data.List
 import Lib
+import Check
+import ParseUtils(SS, dummySS)
+import Exprs
 
 -- TODO repl
 -- TODO release packaged binaries on github
@@ -25,8 +31,8 @@ runString filePath source = case parseProgram filePath source of
     Right prog ->
         case checkProgram prog of
             Left errs -> sequence_ (print <$> errs)
-            Right env -> print env
-
+            Right env -> print (envDifference env (initialEnv dummySS))
+{--
 type Repl a = HaskelineT IO a
 
 cmd :: String -> Repl ()
@@ -59,3 +65,70 @@ ini = liftIO $ putStrLn "Welcome to UnitChecker!" >> putStrLn "for help, use :he
 
 repl :: IO ()
 repl = evalRepl (pure ">>> ") cmd otherCommands (Just ':') (Word completer) ini
+--}
+type Repl a = HaskelineT (StateT (TyEnv SS) IO) a
+
+cmd :: String -> Repl ()
+cmd input =
+    case parseProgram "<stdin>" input of
+        Left err -> liftIO $ hPrint stderr err
+        Right prog ->
+            case checkProgram prog of
+                Left errs -> liftIO $ sequence_ (print <$> errs)
+                Right env' -> do
+                    env <- get
+                    put (envDifference env' env)
+                    liftIO (print env)
+
+comp :: (Monad m, MonadState (TyEnv SS) m) => WordCompleter m
+comp n = do
+    env <- get
+    let names = concat [ getNames env
+                       , ["var", "def", "derived", "fun", "eq", "expr"]
+                       , [show (b()) | b <- siUnits]
+                       , [":"++name | opt <- opts, name <- synonyms opt]
+                       ]
+    return $ filter (isPrefixOf n) names
+
+help :: [String] -> Repl ()
+help _ = liftIO $ putStrLn (unlines helpLines)
+
+quit :: [String] -> Repl ()
+quit _ = abort
+
+listEnv :: [String] -> Repl ()
+listEnv _ = do
+    env <- get
+    liftIO (print env)
+
+-- showVarUnits :: [String] -> Repl ()
+-- showVarUnits [] = liftIO $ hPutStrLn stderr "no name provided to :units\nusage: :units x"
+-- showVarUnits (x:_) = do
+    
+
+
+
+data Opt = Opt{ synonyms :: [String]
+              , arguments :: [String]
+              , runOpt :: [String] -> Repl ()
+              , usage :: String  
+              }
+opts :: [Opt]
+opts = 
+    [ Opt ["help", "h"] [] help    "display this help information"
+    , Opt ["quit", "q"] [] quit    "exit the repl"
+    , Opt ["list", "l"] [] listEnv "list all names currently in scope"
+    ]
+
+helpLines :: [String]
+helpLines = "command -> description":[unwords ((":"++) <$> synonyms opt)++" -> "++usage opt | opt <- opts]
+
+opts' :: [(String, [String] -> Repl ())]
+opts' = [(name, runOpt opt) | opt <- opts, name <- synonyms opt]
+
+ini :: Repl ()
+ini = liftIO $ putStrLn "Welcome to UnitChecker!" >> putStrLn "for help, use :h or :help. to quit, use :q or :quit"
+
+repl :: IO ()
+repl = flip evalStateT (initialEnv dummySS)
+     $ evalRepl (pure "UnitChecker> ") cmd opts' (Just ':') (Word comp) ini
