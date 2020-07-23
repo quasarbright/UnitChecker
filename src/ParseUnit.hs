@@ -11,17 +11,7 @@ baseOfString :: String -> SS -> BaseUnit SS
 baseOfString s = Maybe.fromMaybe (Derived s) (lookup s siMap)
     where
         siMap :: [(String, SS -> BaseUnit SS)]
-        siMap = [ ("m", Meter)
-                , ("s", Second)
-                , ("kg", Kilogram)
-                , ("A", Ampere)
-                , ("K", Kelvin)
-                , ("mol", Mole)
-                , ("cd", Candela)
-                , ("rad", Radian)
-                ]
-
--- m
+        siMap = [(show (b dummySS), b) | b <- siUnits]
 base :: Parser (BaseUnit SS)
 base = uncurry baseOfString <$> wrapSS ident <?> "base unit"
 

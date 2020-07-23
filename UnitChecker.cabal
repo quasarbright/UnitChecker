@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: a0c4ae60a0562e177a175d30769dab9d436e061ba9e1a3574091db41c6b48604
+-- hash: d8209726efde7d7c226fe0e5ebd7e3435378e6d48901881b01bf2f4c383d6c26
 
 name:           UnitChecker
 version:        0.1.0.0
@@ -31,9 +31,9 @@ library
       Exprs
       Lib
       ParseExpr
+      ParseProgram
       ParseUnit
       ParseUtils
-      ParseProgram
   other-modules:
       Paths_UnitChecker
   hs-source-dirs:
@@ -42,9 +42,10 @@ library
   build-depends:
       base >=4.7 && <5
     , containers
+    , mtl
     , parsec
+    , repline ==0.2.2.0
     , transformers
-    , repline
   default-language: Haskell2010
 
 executable UnitChecker-exe
@@ -58,9 +59,10 @@ executable UnitChecker-exe
       UnitChecker
     , base >=4.7 && <5
     , containers
+    , mtl
     , parsec
+    , repline ==0.2.2.0
     , transformers
-    , repline
   default-language: Haskell2010
 
 test-suite UnitChecker-test
@@ -76,7 +78,8 @@ test-suite UnitChecker-test
     , UnitChecker
     , base >=4.7 && <5
     , containers
+    , mtl
     , parsec
+    , repline ==0.2.2.0
     , transformers
-    , repline
   default-language: Haskell2010

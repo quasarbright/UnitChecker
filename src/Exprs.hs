@@ -11,6 +11,8 @@ type Map k v = Map.Map k v
 -- TODO rm radians
 -- | SI units + radians + derived
 data BaseUnit a = Meter a | Second a | Kilogram a | Ampere a | Kelvin a | Mole a | Candela a | Radian a | Derived String a
+siUnits :: [a -> BaseUnit a]
+siUnits = [Meter, Second, Kilogram, Ampere, Kelvin, Mole, Candela, Radian]
 
 instance Eq (BaseUnit a) where
     (Derived name1 _) == (Derived name2 _) = name1 == name2
