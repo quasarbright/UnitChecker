@@ -52,11 +52,37 @@ emptyEnvironment = TyEnv {derivedMap=Map.empty, varMap=Map.empty, funMap=Map.emp
 addDerived :: Ord a => String -> Unit a -> TyEnv a -> TyEnv a
 addDerived name unit env = env{derivedMap=Map.insert name unit (derivedMap env)}
 
+lookupDerived :: Ord a => String -> TyEnv a -> Maybe (Unit a)
+lookupDerived name env = Map.lookup name (derivedMap env)
+
 addVar :: Ord a => String -> Unit a -> TyEnv a -> TyEnv a
 addVar name unit env = env{varMap=Map.insert name unit (varMap env)}
 
+lookupVar :: Ord a => String -> TyEnv a -> Maybe (Unit a)
+lookupVar name env = Map.lookup name (varMap env)
+
 addFun :: Ord a => String -> Signature a -> TyEnv a -> TyEnv a
 addFun name sig env = env{funMap=Map.insert name sig (funMap env)}
+
+lookupFun :: Ord a => String -> TyEnv a -> Maybe (Signature a)
+lookupFun name env = Map.lookup name (funMap env)
+
+getNames :: Ord a => TyEnv a -> [String]
+getNames env = nub $ concat [Map.keys (varMap env),Map.keys (derivedMap env),Map.keys (funMap env)]
+
+-- TODO make this use a tag-aware equality for units so redefining [N] gets exported
+-- | envDifference e1 e2 returns the definitions in e2 that aren't in e1
+envDifference :: Ord a => TyEnv a -> TyEnv a -> TyEnv a
+envDifference e1 e2 = e1{ varMap=varMap e1 `mapDiff` varMap e2
+                        , derivedMap=derivedMap e1 `mapDiff` derivedMap e2
+                        , funMap=funMap e1 `mapDiff` funMap e2
+                        }
+    where
+        mapDiff m1 m2 = Map.differenceWith passIfSame m1 m2
+        passIfSame a b
+            | a == b = Nothing -- this is the subtraction
+            | otherwise = Just a
+
 
 infixl 1 |>
 (|>) :: a -> (a -> b) -> b
