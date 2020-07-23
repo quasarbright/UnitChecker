@@ -41,7 +41,7 @@ cmd input = do
     case parseProgram "<stdin>" input of
         Left err -> liftIO $ hPrint stderr err
         Right prog ->
-            case checkProgram prog of
+            case checkProgramWithEnv env prog of
                 Left errs -> liftIO $ sequence_ (print <$> errs)
                 Right env' -> do
                     put env'
