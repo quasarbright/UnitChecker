@@ -2,6 +2,9 @@ module Main where
 
 import System.Environment
 import System.IO
+import System.Console.Repline
+import Control.Monad.IO.Class
+import Data.List
 import Lib
 
 -- TODO repl
@@ -11,17 +14,43 @@ main :: IO ()
 main = do
     args <- getArgs
     case args of
-        [] -> do
-            source <- getContents
-            go "<stdin>" source
+        [] -> repl -- TODO document change to piping
         filePath:_ -> do
             source <- readFile filePath
-            go filePath source
+            runString filePath source
 
-go :: String -> String -> IO ()
-go filePath source = case parseProgram filePath source of
+runString :: String -> String -> IO ()
+runString filePath source = case parseProgram filePath source of
     Left err -> hPrint stderr err
     Right prog ->
         case checkProgram prog of
             Left errs -> sequence_ (print <$> errs)
             Right env -> print env
+
+type Repl a = HaskelineT IO a
+
+cmd :: String -> Repl ()
+cmd input = liftIO $ runString "<stdin>" input
+
+completer :: Monad m => WordCompleter m
+completer n = do
+  let names = ["eq", "expr", "var", "def", "derived", "fun", ":help", ":list"]
+  return $ filter (isPrefixOf n) names
+
+
+help :: [String] -> Repl ()
+help _ = liftIO $ print "help" -- TODO help
+
+-- listEnv :: [String] -> Repl ()
+-- listEnv _ = liftIO $ print env
+
+otherCommands :: [(String, [String] -> Repl ())]
+otherCommands = [
+    ("help", help)  -- :help
+  ]
+
+ini :: Repl ()
+ini = liftIO $ putStrLn "Welcome!"
+
+repl :: IO ()
+repl = evalRepl (pure ">>> ") cmd otherCommands (Just ':') (Word completer) ini

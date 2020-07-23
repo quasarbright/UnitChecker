@@ -1,4 +1,4 @@
-module ParseProgram(program, parseProgram) where
+module ParseProgram(program, parseProgram, statement, parseStatement) where
 
 import ParseUtils
 import Exprs
@@ -13,6 +13,9 @@ program = Program <$> many statement <?> "program"
 
 parseProgram :: String -> String -> Either ParseError (Program SS)
 parseProgram = parse (P.whiteSpace lexer *> program <* eof)
+
+parseStatement :: String -> String -> Either ParseError (Statement SS)
+parseStatement = parse (P.whiteSpace lexer *> statement <* eof)
 
 eqTok :: Parser ()
 eqTok = P.reservedOp lexer "="

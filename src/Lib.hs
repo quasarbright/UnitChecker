@@ -1,4 +1,4 @@
-module Lib(checkProgram, parseProgram) where
+module Lib(checkProgram, checkProgramWithEnv, runStatement, parseProgram, parseStatement) where
 
 import Exprs
 import Check

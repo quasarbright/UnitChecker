@@ -77,11 +77,14 @@ initialEnv a =
     |> addFun "cos" (Signature [dimensionless] dimensionless a)
     |> addFun "exp" (Signature [dimensionless] dimensionless a)
 
+tyEnvToWFEnv :: Ord a => TyEnv a -> ([String], [String], [String])
+tyEnvToWFEnv env = ( Map.keys $ derivedMap env
+                    , Map.keys $ varMap env
+                    , Map.keys $ funMap env
+                    )
+
 initialWFEnv :: ([String], [String], [String])
-initialWFEnv = ( Map.keys $ derivedMap (initialEnv ())
-               , Map.keys $ varMap (initialEnv ())
-               , Map.keys $ funMap (initialEnv ())
-               )
+initialWFEnv = tyEnvToWFEnv (initialEnv ())
 
 getUnitFreeVars :: Unit a -> [(String, a)]
 getUnitFreeVars unit = dNames where
@@ -115,14 +118,17 @@ checkExprWellFormedness env@(deriveds, vars, funs) e =
     where
         recurse = checkExprWellFormedness env
 --                                        deriveds, vars,     funs
-checkWellFormedness :: Program a -> ([Error a], ([String], [String], [String]))
-checkWellFormedness (Program statements) = foldl go ([], initialWFEnv) statements where
+checkWellFormednessWith :: ([String], [String], [String]) -> Program a -> ([Error a], ([String], [String], [String]))
+checkWellFormednessWith wfenv (Program statements) = foldl go ([], wfenv) statements where
     go (errs, env@(deriveds, vars, funs)) statement = case statement of
         VarDeclStatement vd@(VarDecl name _ _) _ -> (errs++checkVarDecl deriveds vd, (deriveds, name:vars, funs))
         DerivedDeclStatement dd@(DerivedDecl name _ _) _ -> (errs++checkDerivedDecl deriveds dd, (name:deriveds, vars, funs))
         ExprStatement e _ -> (errs++checkExprWellFormedness env e, env)
         EqnStatement (Equation left right _) _ -> (errs++checkExprWellFormedness env left++checkExprWellFormedness env right, env)
         VarDefStatement name e _ -> (errs++checkExprWellFormedness env e, (deriveds, name:vars, funs))
+
+checkWellFormedness :: Program a -> ([Error a], ([String], [String], [String]))
+checkWellFormedness = checkWellFormednessWith initialWFEnv
 
 type EnvProcessor a b = StateT (TyEnv a) (Either (Error a)) b
 type InfallibleEnvProcessor a b = State (TyEnv a) b
@@ -239,3 +245,12 @@ checkProgramWith dummy p = do
     let (errs, _) = checkWellFormedness p
     unless (null errs) (Left errs)
     either (Left . return) Right (execStateT (typeCheckProgramEnv p) (initialEnv dummy))
+
+checkProgramWithEnv :: Ord a => TyEnv a -> Program a -> Either [Error a] (TyEnv a)
+checkProgramWithEnv env p = do
+    let (errs, _) = checkWellFormednessWith (tyEnvToWFEnv env) p
+    unless (null errs) (Left errs)
+    either (Left . return) Right (execStateT (typeCheckProgramEnv p) env)
+
+runStatement :: Ord a => TyEnv a -> Statement a -> Either [Error a] (TyEnv a)
+runStatement env s = checkProgramWithEnv env (Program [s])

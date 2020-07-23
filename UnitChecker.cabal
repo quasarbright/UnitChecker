@@ -33,7 +33,6 @@ library
       ParseExpr
       ParseUnit
       ParseUtils
-      StateTPractice
       ParseProgram
   other-modules:
       Paths_UnitChecker
@@ -44,8 +43,8 @@ library
       base >=4.7 && <5
     , containers
     , parsec
-    , random
     , transformers
+    , repline
   default-language: Haskell2010
 
 executable UnitChecker-exe
@@ -61,6 +60,7 @@ executable UnitChecker-exe
     , containers
     , parsec
     , transformers
+    , repline
   default-language: Haskell2010
 
 test-suite UnitChecker-test
@@ -78,4 +78,5 @@ test-suite UnitChecker-test
     , containers
     , parsec
     , transformers
+    , repline
   default-language: Haskell2010
