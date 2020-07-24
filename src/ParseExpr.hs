@@ -9,6 +9,20 @@ import ParseUtils
 import ParseUnit
 
 
+{--
+<expr> = <expr> <binop> <expr>
+       | '-' <expr>
+       | '(' <expr> ')'
+       | <identifier> '(' <args>? ')'
+       | <expr> '::' <unit>
+       | <number>
+       | <identifier>
+
+<args> = <expr> | <expr> ',' <args>
+
+<binop> = [-+*/^]
+--}
+
 combineExprSS :: Expr SS -> Expr SS -> SS
 combineExprSS e1 e2 = combineSS (getTag e1) (getTag e2)
 

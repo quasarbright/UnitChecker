@@ -9,6 +9,32 @@ import Control.Applicative hiding (Const)
 import ParseExpr
 import ParseUnit
 
+{--
+<program> = <statement>*
+
+<statement> = 'def' <identifier> '=' <expression>
+            | 'var' <identifier> '::' <unit>
+            | 'derived' <identifier> '=' <unit>
+            | 'expr' <expr>
+            | 'eq' <expr> '=' <expr>
+
+<expr> = <expr> <binop> <expr>
+       | '-' <expr>
+       | '(' <expr> ')'
+       | <identifier> '(' <args>? ')'
+       | <expr> '::' <unit>
+       | <number>
+       | <identifier>
+
+<args> = <expr> | <expr> ',' <args>
+
+<binop> = [-+*/^]
+
+<unit> = '[' <basePow>* ']'
+
+<basePow> = <identifier> ('^' <integer>)?
+--}
+
 program :: Parser (Program SS)
 program = Program <$> many statement <?> "program"
 

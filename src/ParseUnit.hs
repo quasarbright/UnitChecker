@@ -7,6 +7,12 @@ import qualified Text.Parsec.Token as P
 import Control.Applicative hiding (Const)
 import qualified Data.Maybe as Maybe
 
+{--
+<unit> = '[' <basePow>* ']'
+
+<basePow> = <identifier> ('^' <integer>)?
+--}
+
 baseOfString :: String -> SS -> BaseUnit SS
 baseOfString s = Maybe.fromMaybe (Derived s) (lookup s siMap)
     where
