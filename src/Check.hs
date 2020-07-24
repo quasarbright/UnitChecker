@@ -1,5 +1,5 @@
 module Check where
--- TODO make prelude an actual file and link it
+-- TODO make prelude an actual file and link it (or just make a fake one for documentation lol)
 
 import Exprs
 import qualified Data.Map as Map
