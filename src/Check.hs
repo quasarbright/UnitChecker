@@ -42,6 +42,7 @@ instance Show a => Show (Error a) where
 --   from the new program.
 data TyEnv a = TyEnv {derivedMap :: Map String (Unit a, Int), varMap :: Map String (Unit a, Int), funMap :: Map String (Signature a, Int), count :: Int}
 
+-- | Shows environment entries in the order that they were defined (inserted) separated by newlines. Uses ID's to sort
 instance Show (TyEnv a) where
     show env =
         [deriveds, vars, funs]
@@ -50,9 +51,17 @@ instance Show (TyEnv a) where
         |> fmap fst
         |> unlines
         where
+            -- | derived unit names with their insertion ID
+            deriveds :: [(String, Int)]
             deriveds = mapToVersionedLines " = " (derivedMap env)
+            -- | variable names with their insertion ID
+            vars :: [(String, Int)]
             vars = mapToVersionedLines " :: " (varMap env)
+            -- | function names with their insertion ID
+            funs :: [(String, Int)]
             funs = mapToVersionedLines " :: " (funMap env)
+            -- | takes in a separator and an environmental map and returns each entry rendered and ID'ed
+            mapToVersionedLines :: Show a => String -> Map.Map String (a, Int) -> [(String, Int)]
             mapToVersionedLines sep m = --showPair sep . swap . unassoc <$> Map.toList m
                 Map.toList m
                 |> fmap unassoc
@@ -60,6 +69,7 @@ instance Show (TyEnv a) where
             unassoc (a, (b, c)) = ((a, b), c)
             showPair sep (name, val) = name++sep++show val
 
+-- | Totally empty type environment
 emptyEnvironment :: TyEnv a
 emptyEnvironment = TyEnv {derivedMap=Map.empty, varMap=Map.empty, funMap=Map.empty, count = 0}
 

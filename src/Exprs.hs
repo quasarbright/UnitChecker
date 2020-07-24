@@ -9,7 +9,8 @@ import Data.Ratio
 type Map k v = Map.Map k v
 
 -- TODO rm radians
--- | Either an SI unit or a derived unit
+-- | Either an SI unit or a derived unit.
+--   Equality ignores tags
 data BaseUnit a = Meter a | Second a | Kilogram a | Ampere a | Kelvin a | Mole a | Candela a | Radian a | Derived String a
 
 -- | All SI units, but they need a tag
@@ -20,11 +21,13 @@ siUnits = [Meter, Second, Kilogram, Ampere, Kelvin, Mole, Candela, Radian]
 siUnitNames :: [String]
 siUnitNames = [show (b()) | b <- siUnits]
 
+-- equality ignores tags
 instance Eq (BaseUnit a) where
     (Derived name1 _) == (Derived name2 _) = name1 == name2
     -- jank, but I don't want to write all those cases and it works
     base1 == base2 = show base1 == show base2
 
+-- comparison ignores tags
 instance Ord (BaseUnit a) where
     compare (Derived name1 _) (Derived name2 _) = compare name1 name2
     compare Derived{} _ = GT
