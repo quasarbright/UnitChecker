@@ -81,17 +81,17 @@ eq F = Fg
 /*
 Running a program outputs newly defined variables and derived units with their corresponding types.
 This example program outputs the following:
+N = [kg m s^-2]
+J = [m N]
 MyUnit = [kg^-2 m^2 s]
+m :: [kg]
+a :: [m s^-2]
 F :: [kg m s^-2]
 F_newtons :: [N]
-Fg :: [kg m s^-2]
-a :: [m s^-2]
 dp :: [kg m s^-1]
 dt :: [s]
 f :: [hz]
-m :: [kg]
 t :: [s]
 x :: []
-
-note that since [N] and [J] are defined in the prelude and weren't defined differently, they do not appear in the output
+Fg :: [kg m s^-2]
 */
