@@ -324,9 +324,9 @@ typeSynth e = case e of
             Divide -> return $ divideUnits leftUnit rightUnit
             Pow
                 -- both dimensionless
-                | and $ null <$> [leftBasePows, rightBasePows] -> return leftUnit
+                | all isDimensionless [leftUnit, rightUnit] -> return leftUnit
                 -- dimensionful ^ dimensionless, must be rational p/q and pows must be divisible by q
-                | null rightBasePows -> do
+                | isDimensionless rightUnit -> do
                     env <- get
                     let maybeRightRatio = asRatio right
                     rightRatio <- lift $ Maybe.maybe (Left (IrrationalDimensionlessExponent right a)) Right maybeRightRatio
@@ -340,9 +340,6 @@ typeSynth e = case e of
                     lift $ flipEither flipped
                 -- something ^ dimensionfull, mismatch
                 | otherwise -> lift $ Left (Mismatch dimensionless rightUnit a)
-                where
-                    leftBasePows = Map.toList (bases leftUnit)
-                    rightBasePows = Map.toList (bases rightUnit)
     Parens inner _ -> typeSynth inner
     -- type check the expression against the annotated type
     Annot inner unit _

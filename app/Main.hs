@@ -52,7 +52,7 @@ comp n = do
     env <- get
     let names = concat [ getNames env
                        , ["var", "def", "derived", "fun", "eq", "expr"]
-                       , [show (b()) | b <- siUnits]
+                       , siUnitNames
                        , [":"++name | opt <- opts, name <- synonyms opt]
                        ]
     return $ filter (isPrefixOf n) names

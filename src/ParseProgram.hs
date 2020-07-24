@@ -1,4 +1,5 @@
 module ParseProgram(program, parseProgram, statement, parseStatement) where
+-- TODO error if they try to override an SI unit bc they won't be able to use it
 
 import ParseUtils
 import Exprs

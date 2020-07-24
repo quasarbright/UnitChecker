@@ -9,10 +9,16 @@ import Data.Ratio
 type Map k v = Map.Map k v
 
 -- TODO rm radians
--- | SI units + radians + derived
+-- | Either an SI unit or a derived unit
 data BaseUnit a = Meter a | Second a | Kilogram a | Ampere a | Kelvin a | Mole a | Candela a | Radian a | Derived String a
+
+-- | All SI units, but they need a tag
 siUnits :: [a -> BaseUnit a]
 siUnits = [Meter, Second, Kilogram, Ampere, Kelvin, Mole, Candela, Radian]
+
+-- | Names of all SI units
+siUnitNames :: [String]
+siUnitNames = [show (b()) | b <- siUnits]
 
 instance Eq (BaseUnit a) where
     (Derived name1 _) == (Derived name2 _) = name1 == name2
@@ -38,50 +44,47 @@ instance Show (BaseUnit a) where
     show (Derived name _) = name
 
 -- | map from base units to their exponents
-newtype Unit a = Unit (Map (BaseUnit a) Int) deriving(Eq, Ord)
+newtype Unit a = Unit {bases :: Map (BaseUnit a) Int} deriving(Eq, Ord)
 
 instance Show (Unit a) where
     show u = "["++unwords (showPair <$> Map.toList (bases u))++"]" where
         showPair (base, 1) = show base
         showPair (base, power) = show base++"^"++show power
 
+-- | Function signature. No currying, so it's just inputs -> output
 data Signature a = Signature [Unit a]  (Unit a) a deriving(Eq, Ord)
 
 instance Show (Signature a) where
     show (Signature ins ret _) = "("++intercalate ", " (show <$> ins)++") -> "++show ret
 
--- | a derived unit of energy
-joule :: Unit ()
-joule = fromBasesList [(Kilogram(), 1), (Meter(), 1), (Second(), -2)]
-
--- | An example of using derived units in another unit (Joule Seconds)
-planckConstantUnits :: Unit ()
-planckConstantUnits = fromBasesList [(Derived "J" (), 1), (Second(), 1)]
-
-bases :: Unit a -> Map (BaseUnit a) Int
-bases (Unit m) = m
-
+-- | the units for a dimensionless quantity (no units)
 dimensionless :: Ord a => Unit a
 dimensionless = fromBasesList []
 
+-- | Is the given unit dimensionless?
 isDimensionless :: Unit a -> Bool
 isDimensionless unit = null $ bases unit
 
+-- | Create a unit from a map from bases to powers
+--   Use this instead of the constructor because it filters out [m^0]
 fromBases :: Map (BaseUnit a) Int -> Unit a
 fromBases m = Unit m' where
     m' = Map.filter (/= 0) m
 
+-- | Create a unit from a list of tuples from bases to powers
 fromBasesList :: Ord a => [(BaseUnit a, Int)] -> Unit a
 fromBasesList = fromBases . Map.fromListWith (+)
 
+-- | multiply two units together (union of bases, adding exponents of common bases)
 multiplyUnits :: Ord a => Unit a -> Unit a -> Unit a
 multiplyUnits a b = fromBases $ Map.unionWith (+) (bases a) (bases b)
 
+-- | divide two units (union of bases, subtracting exponents of common bases)
 divideUnits :: Ord a => Unit a -> Unit a -> Unit a
 divideUnits a b = fromBases $ Map.unionWith (-) (bases a) (bases b)
 
--- | powUnit onFail unit (p % q) multiplies the unit's exponents by p / q
---   if a base unit's power is not divisible by q, call onFail on it
+-- | powUnit unit (p % q) multiplies the unit's exponents by p / q.
+--   if a base unit's power n is not divisible by q, return the base unit and n instead (Left)
 powUnit :: Ord a => Unit a -> Ratio Int -> Either (BaseUnit a, Int) (Unit a)
 powUnit unit pq = Unit . Map.fromList <$> mapM mulPower (Map.toList (bases unit)) where
     mulPower (base, power) = do
@@ -97,11 +100,13 @@ powUnitInt unit p = Unit . Map.fromList $ mulPower <$> Map.toList (bases unit) w
     mulPower (base, power) =
         (base, power * p)
 
+-- | unary operation
 data Prim1 = Negate deriving(Eq, Ord)
 
 instance Show Prim1 where
     show Negate = "-"
 
+-- | binary operation
 data Prim2 = Plus | Minus | Times | Divide | Pow deriving(Eq, Ord)
 
 instance Show Prim2 where
@@ -111,7 +116,7 @@ instance Show Prim2 where
     show Divide = "/"
     show Pow = "^"
 
--- | A mathematical expression
+-- | A mathematical expression, possibly annotated with units
 data Expr a = IntExpr Int a
           | DoubleExpr Double a
           | Var String a
@@ -132,6 +137,7 @@ instance Show (Expr a) where
     show (Parens e _) = "("++show e++")"
     show (Annot e u _) = show e++" :: "++show u
 
+-- | get the tag of an expression
 getTag :: Expr a -> a
 getTag (IntExpr _ a) = a
 getTag (DoubleExpr _ a) = a
@@ -142,7 +148,7 @@ getTag (Prim2 _ _ _ a) = a
 getTag (Parens _ a) = a
 getTag (Annot _ _ a) = a
 
--- | for something like (9.8 :: m^1 s^-2)
+-- | True for constant, unitless expressions. For example, (9.8 :: m^1 s^-2) is ok
 canBeAnnotated :: Expr a -> Bool
 canBeAnnotated IntExpr{} = True
 canBeAnnotated DoubleExpr{} = True
@@ -153,7 +159,9 @@ canBeAnnotated Prim2{} = False
 canBeAnnotated (Parens e _) = canBeAnnotated e
 canBeAnnotated Annot{} = False
 
-
+-- | Try to convert an expression to a ratio.
+--   Reduces on */+-, but only reduces on ^ if power is an integer
+--   Does not try for doubles or variables.
 asRatio :: Expr a -> Maybe (Ratio Int)
 asRatio (IntExpr n _) = return (n % 1)
 asRatio DoubleExpr{} = Nothing
@@ -179,8 +187,9 @@ asRatio (Annot e _ _) = asRatio e
 -- | A declaration of a variable's unit
 data VarDecl a = VarDecl String (Unit a) a deriving(Eq, Ord, Show)
 
--- | A declaration of a derived unit (like joule = kg m / s^2)
+-- | A declaration of a derived unit (like J = [kg m / s^2])
 data DerivedDecl a = DerivedDecl String (Unit a) a deriving(Eq, Ord, Show)
+
 -- | A mathematical equation
 data Equation a = Equation (Expr a) (Expr a) a deriving(Eq, Ord)
 
