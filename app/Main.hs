@@ -20,7 +20,7 @@ main :: IO ()
 main = do
     args <- getArgs
     case args of
-        [] -> repl -- TODO document change to piping
+        [] -> repl
         filePath:_ -> do
             source <- readFile filePath
             runString filePath source
