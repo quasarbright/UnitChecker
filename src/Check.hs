@@ -11,6 +11,8 @@ import Control.Monad
 import Data.Functor.Identity
 import Data.List
 
+
+-- | custom error type for unit errors
 data Error a = UnboundDerived String a
              | UnboundVar String a
              | UnboundFun String a
@@ -35,7 +37,9 @@ instance Show a => Show (Error a) where
             p = numerator pq
             q = denominator pq
 
--- the count is the next available count. used to keep track of versioning of names
+-- | An environment mapping names to types. Has separate name spaces for variable types, type synonynms, and function types.
+--   Also has an incrementing count to ID each association in the environment (hence @Map String (Unit a, Int)@). This is useful for when one program imports another and you only want definitions
+--   from the new program.
 data TyEnv a = TyEnv {derivedMap :: Map String (Unit a, Int), varMap :: Map String (Unit a, Int), funMap :: Map String (Signature a, Int), count :: Int}
 
 instance Show (TyEnv a) where
@@ -59,32 +63,41 @@ instance Show (TyEnv a) where
 emptyEnvironment :: TyEnv a
 emptyEnvironment = TyEnv {derivedMap=Map.empty, varMap=Map.empty, funMap=Map.empty, count = 0}
 
+-- | increments the counter for an environment. should be called whenever you add a new environment element
 _inc :: TyEnv a -> TyEnv a
 _inc env = env{count=count env+1}
 
+-- | add a type synonym to an environment
 addDerived :: Ord a => String -> Unit a -> TyEnv a -> TyEnv a
 addDerived name unit env = _inc env{derivedMap=Map.insert name (unit, count env) (derivedMap env)}
 
+-- | get the (perhaps partially) expanded version of a type synonym in an environment
 lookupDerived :: Ord a => String -> TyEnv a -> Maybe (Unit a)
 lookupDerived name env = fst <$> Map.lookup name (derivedMap env)
 
+-- | add a typed variable to an environment
 addVar :: Ord a => String -> Unit a -> TyEnv a -> TyEnv a
 addVar name unit env = _inc env{varMap=Map.insert name (unit, count env) (varMap env)}
 
+-- | get the type of a variable in an environment
 lookupVar :: Ord a => String -> TyEnv a -> Maybe (Unit a)
 lookupVar name env = fst <$> Map.lookup name (varMap env)
 
+-- | add a function and its signature to the environment
 addFun :: Ord a => String -> Signature a -> TyEnv a -> TyEnv a
 addFun name sig env = _inc env{funMap=Map.insert name (sig, count env) (funMap env)}
 
+-- | get the signature of a function in an environment
 lookupFun :: Ord a => String -> TyEnv a -> Maybe (Signature a)
 lookupFun name env = fst <$> Map.lookup name (funMap env)
 
+-- | get all defined names in the environment, combining all namespaces. Used for autocomplete
 getNames :: Ord a => TyEnv a -> [String]
 getNames env = nub $ concat [Map.keys (varMap env),Map.keys (derivedMap env),Map.keys (funMap env)]
 
--- TODO make this use a tag-aware equality for units so redefining [N] gets exported
--- | envDifference e' e returns the definitions in e' that aren't in e
+-- | @envDifference e' e@ returns the definitions in @e'@ that aren't in @e@
+--   Uses the IDs on associations to filter out old ones.
+--   Assumes @e'@ imports @e@ so its ID's are all greater
 envDifference :: Ord a => TyEnv a -> TyEnv a -> TyEnv a
 envDifference e' e = e'{ varMap=mapFilter $ varMap e'
                         , derivedMap=mapFilter $ derivedMap e'
@@ -93,16 +106,13 @@ envDifference e' e = e'{ varMap=mapFilter $ varMap e'
     where
         c = count e
         mapFilter m' = Map.filter (\(_,n') -> n' >= c) m'
-        -- mapDiff m' m = Map.differenceWith passIfNew m' m
-        -- passIfNew a' a
-        --     | a' == a = Nothing -- same thing, get rid of it
-        --     | otherwise = Just a'
-
 
 infixl 2 |>
+-- | Function application pipe. @x |> f |> g |> h@ is @h (g (f x))@. Useful for visually chronological composition
 (|>) :: a -> (a -> b) -> b
 x |> f = f x
 
+-- | initial environment for type checking (AKA prelude). Requires a dummy tag for tagging units
 initialEnv :: Ord a => a -> TyEnv a
 initialEnv a =
     emptyEnvironment
@@ -118,33 +128,40 @@ initialEnv a =
     |> addFun "cos" (Signature [dimensionless] dimensionless a)
     |> addFun "exp" (Signature [dimensionless] dimensionless a)
 
+-- | Convert a type environment, which maps names to units, to a well-formedness environment, which only cares about names being in scope
 tyEnvToWFEnv :: Ord a => TyEnv a -> ([String], [String], [String])
 tyEnvToWFEnv env = ( Map.keys $ derivedMap env
                     , Map.keys $ varMap env
                     , Map.keys $ funMap env
                     )
 
+-- | The initial environment (AKA prelude), but only containing information about which names are in scope. Used for well-formedness check
 initialWFEnv :: ([String], [String], [String])
 initialWFEnv = tyEnvToWFEnv (initialEnv ())
 
+-- | Get the derived unit names that occur in a unit. For example, @getUnitFreeVars (parseUnit "[J N s]") == [J, N]@
+--   Used for checking if a derived unit is in scope
 getUnitFreeVars :: Unit a -> [(String, a)]
 getUnitFreeVars unit = dNames where
     dNames =  Maybe.catMaybes $ getDName <$> Map.keys (bases unit)
     getDName (Derived name a) = Just (name, a)
     getDName _ = Nothing
 
+-- | Check the well-formedness of a unit given which derived units are in scope
 checkUnit :: [String] -> Unit a -> [Error a]
 checkUnit env unit = ans where
     ans = Maybe.catMaybes $ checkDefined <$> getUnitFreeVars unit
     checkDefined (name, a) = if name `elem` env then Nothing else Just (UnboundDerived name a)
 
--- | names in scope, decls to check
+-- | Check the well-formedness of a derived unit declaration given which derived units are in scope
 checkDerivedDecl :: [String] -> DerivedDecl a -> [Error a]
 checkDerivedDecl env (DerivedDecl _ unit _) = checkUnit env unit
 
+-- | Check the well-formedness of a variable declaration given which derived units are in scope
 checkVarDecl :: [String] -> VarDecl a -> [Error a]
 checkVarDecl env (VarDecl _ unit _) = checkUnit env unit
 
+-- | Check the well-formedness of an expression given which (derived units, variable names, and function names) are in scope
 checkExprWellFormedness :: ([String], [String], [String]) -> Expr a -> [Error a]
 checkExprWellFormedness env@(deriveds, vars, funs) e =
     case e of
@@ -159,6 +176,7 @@ checkExprWellFormedness env@(deriveds, vars, funs) e =
     where
         recurse = checkExprWellFormedness env
 --                                        deriveds, vars,     funs
+-- | check the well-formedness of a program given which (derived units, variable names, and function names) are in scope
 checkWellFormednessWith :: ([String], [String], [String]) -> Program a -> ([Error a], ([String], [String], [String]))
 checkWellFormednessWith wfenv (Program statements) = foldl go ([], wfenv) statements where
     go (errs, env@(deriveds, vars, funs)) statement = case statement of
@@ -168,25 +186,102 @@ checkWellFormednessWith wfenv (Program statements) = foldl go ([], wfenv) statem
         EqnStatement (Equation left right _) _ -> (errs++checkExprWellFormedness env left++checkExprWellFormedness env right, env)
         VarDefStatement name e _ -> (errs++checkExprWellFormedness env e, (deriveds, name:vars, funs))
 
+-- | check the well-formedness of a program using the prelude's defined names as the initial environment
 checkWellFormedness :: Program a -> ([Error a], ([String], [String], [String]))
 checkWellFormedness = checkWellFormednessWith initialWFEnv
 
+-- | Monad for type checking functions which can raise type errors. Carries a "mutable" type environment as state.
+--   Parametrized by tag type @a@ and return type @b@
 type EnvProcessor a b = StateT (TyEnv a) (Either (Error a)) b
+
+-- | Monad for type checking functions which cannot raise type errors. Carries a "mutable" type environment as state.
+--   Parametrized by tag type @a@ and return type @b@
 type InfallibleEnvProcessor a b = State (TyEnv a) b
 
--- | assumes program is well-formed
+-- | Type check a program. Assumes program is well-formed
 typeCheckProgramEnv :: Ord a => Program a -> EnvProcessor a ()
+-- just check all statements, accumulating the environment
 typeCheckProgramEnv (Program statements) = sequence_ (checkStatement <$> statements)
 
+-- | Type check a statement, possibly manipulate the environment
 checkStatement :: Ord a => Statement a -> EnvProcessor a ()
+-- Just try to synthesize the type
 checkStatement (ExprStatement e _) = void $ typeSynth e
-checkStatement (EqnStatement (Equation left right _) _) = sequence_ $ typeSynth <$> [left, right]
+-- Synthesize both types, make sure they're equal
+checkStatement (EqnStatement (Equation left right tag) _) = do 
+    leftTy <- typeSynth left
+    rightTy <- typeSynth right
+    assertSameUnit leftTy rightTy tag
+-- add the variable with its type to the environment (well-formedness check guarantees the unit is valid)
 checkStatement (VarDeclStatement (VarDecl name unit _) _) = modify $ addVar name unit
+-- add the derived unit to the environment
 checkStatement (DerivedDeclStatement (DerivedDecl name unit _) _) = modify $ addDerived name unit
+-- synthesize the variable's value's type, then add the variable and its type to the environment
 checkStatement (VarDefStatement name e _) = do
     unit <- typeSynth e
     modify $ addVar name unit
 
+{--
+This is the real meat of the type checker. I use a simple bidirectional type system since there is the polymorphism is simple (just binops) and inference is easy.
+Here is the paper this type system is based on:
+https://arxiv.org/abs/1908.05839
+@misc{dunfield2019bidirectional,
+    title={Bidirectional Typing},
+    author={Joshua Dunfield and Neel Krishnaswami},
+    year={2019},
+    eprint={1908.05839},
+    archivePrefix={arXiv},
+    primaryClass={cs.PL}
+}
+
+It's pretty much just type inference though. The only checking rule is
+
+Env |- e => T1    Env |- T1 = T2
+--------------------------------
+     Env |- e <= T2
+
+for switching from checking mode to synthesis mode
+
+
+The inference rules are pretty simple and are mostly just an implementation of the laws of units.
+Here is an informal description of the rules:
+- numbers are inferred to be unitless by default, but they can be annotated to arbitrary units like (9.8 :: [m s^-2]).
+- for variables, look them up in the environment and synthesize that type
+- two units are the same iff expanding out all derived units to SI units results in identical units
+    - it is assumed that units are always in simplest form:
+        - [m^a m^b] simplifies to [m^(a+b)] where a and b are integers
+        - [m^0] simplifies to [] (unitless)
+        - Simplification is implicitly guaranteed since I use a Map from bases to integers
+            with exponent addition as a value combiner for common keys
+- for addition and subtraction, both operands must have the same units
+- for multiplication, operand units are combined (union) and exponents of common base units are added together
+- for division, it's the same as multiplication, except exponents are subtracted
+- for exponentiation, there are a few rules:
+    - unitless^unitless is always ok
+    - units^unitless as @a^b@ is only ok iff:
+        - @b@ is a ratio of two integers @p/q@ (or easily simplified to one)
+        - all units of @a@ have exponents @n@ such that @n*p@ is divisible by @q@.
+        The synthesized type is found by transforming all exponents @n@ in the units to @n*p/q@
+        Expansion of derived units into SI units may be necessary.
+        For example, @(1 :: [J kg])^(1/2)@ looks like it should fail, but expanded, it becomes
+        @(1 :: [kg^2 m^2 s^-2])^(1/2)@, which synthesizes the type @[kg m s^-1]@
+    - units^units is never ok
+    - unitless^units is never ok
+- for function calls, the rule is pretty intuitive. The arguments have to match the signature and the return type is synthesized.
+    Here it is formally:
+        Env(f) = (T1,T2,...,Tn) -> T   Env |- x1 <= T1   Env |- x2 <= T2  ...  Env |- xn <= Tn
+        --------------------------------------------------------------------------------------
+                                    Env |- (f(x1,x2,...,xn)) => T
+    This uses type checking
+- for annotations (e :: T), the synthesized type of e must be the same as T
+    Formally:
+            Env |- e <= T
+        --------------------
+        Env |- (e :: T) => T
+    This uses type checking
+--}
+
+-- | Type check an expression, as opposed to type syntheses
 typeCheck :: Ord a => Expr a -> Unit a -> EnvProcessor a ()
 typeCheck e unit = do
     unit' <- typeSynth e
@@ -196,9 +291,11 @@ typeSynth :: Ord a => Expr a -> EnvProcessor a (Unit a)
 typeSynth e = case e of
     DoubleExpr{} -> return dimensionless
     IntExpr{} -> return dimensionless
+    -- simple lookup
     Var name a -> do
         env <- get
         lift $ maybe (Left (UnboundVar name a)) Right (lookupVar name env)
+    -- check arguments against signature argument types and synthesize the return type if all is well
     App f args a -> do
         env <- get
         let Signature ins ret _ = Maybe.fromMaybe (error "unbound fun") (lookupFun f env)
@@ -208,19 +305,22 @@ typeSynth e = case e of
         when (expected /= actual) (lift $ Left (ArityError f expected actual a))
         -- check that all the args match the argument types
         zipWithM_ typeCheck args ins
-        -- all good
+        -- all good, synthesize return type
         return ret
     Prim1 Negate inner _ -> typeSynth inner
     Prim2 prim2 left right a -> do
         leftUnit <- typeSynth left
         rightUnit <- typeSynth right
+        -- both operands must be the same, synthesize type
         let plusMinus = do
                     assertSameUnit leftUnit rightUnit a
                     return leftUnit
         case prim2 of
             Plus -> plusMinus
             Minus -> plusMinus
+            -- union of bases, adding exponents of common bases
             Times -> return $ multiplyUnits leftUnit rightUnit
+            -- union of bases, subtracting exponents of common bases
             Divide -> return $ divideUnits leftUnit rightUnit
             Pow
                 -- both dimensionless
@@ -238,29 +338,36 @@ typeSynth e = case e of
                             -- want to report the error in terms of the derived units
                             return (IndivisibleRationalDimensionLessExponent base power rightRatio a)
                     lift $ flipEither flipped
-                -- dimensionless ^ dimensionfull, mismatch
+                -- something ^ dimensionfull, mismatch
                 | otherwise -> lift $ Left (Mismatch dimensionless rightUnit a)
                 where
                     leftBasePows = Map.toList (bases leftUnit)
                     rightBasePows = Map.toList (bases rightUnit)
     Parens inner _ -> typeSynth inner
+    -- type check the expression against the annotated type
     Annot inner unit _
         | canBeAnnotated inner -> return unit
         | otherwise -> do
             typeCheck inner unit 
             return unit
 
+-- | Flip an either type.
+--   Used when instead of aborting upon an error, you want to keep retrying unless you found an answer,
+--   but you still want to know the errors if your retries all fail
 flipEither :: Either a b -> Either b a
 flipEither (Right b) = Left b
 flipEither (Left a) = Right a
 
+-- | Expand a (possibly derived) base unit to SI units given a type environment.
+--   Cannot result in an error assuming program well-formedness
 expandBaseUnit :: Ord a => BaseUnit a -> InfallibleEnvProcessor a (Unit a)
 expandBaseUnit (Derived name _) = do
     env <- get
     expandUnit $ Maybe.fromMaybe (error "unbound derived") (lookupDerived name env)
 expandBaseUnit base = return $ fromBasesList [(base, 1)]
 
--- | expands derived units to SI units and aggregates to one unit
+-- | Expand a unit's derived units to SI units and simplify the resulting unit
+--   Cannot result in an error assuming program well-formedness
 expandUnit :: Ord a => Unit a -> InfallibleEnvProcessor a (Unit a)
 expandUnit unit = do
         let basePows = Map.toList (bases unit)
@@ -270,28 +377,34 @@ expandUnit unit = do
         let raisedBases = expandAndRaiseBasePow <$> basePows
         foldr (liftM2 multiplyUnits) (return dimensionless) raisedBases
 
+-- | Assert two units are the same in the current environment and throw a mismatch error if they're not.
+--   Uses given tag as the error location.
+--   Expands derived units and then compares for equality.
+--   Reports error in terms of original, un-expanded units of a mismatch occurs
 assertSameUnit :: Ord a => Unit a -> Unit a -> a -> EnvProcessor a ()
 assertSameUnit a b tag = do
-    -- this weirdness is due to transforming between Identity and Either StateT's
+    -- this nested do weirdness is due to transforming between State and StateT Either monads
     unequal <- mapStateT (return . runIdentity) $ do
         a' <- expandUnit a
         b' <- expandUnit b
         return (a' /= b')
     when unequal (lift $ Left $ Mismatch a b tag)
 
--- | check the program with the given dummy tag for items of the initial environment and return the final environment.
---   This might be a source span <prelude>:0:0-0:0, for example
+-- | Check the program with the given dummy tag for generating the initial environment and return the final environment.
+--   The dummy tag might be a source span <prelude>:0:0-0:0, for example
 checkProgramWith :: Ord a => a -> Program a -> Either [Error a] (TyEnv a)
-checkProgramWith dummy p = do
-    let (errs, _) = checkWellFormedness p
-    unless (null errs) (Left errs)
-    either (Left . return) Right (execStateT (typeCheckProgramEnv p) (initialEnv dummy))
+checkProgramWith dummy = checkProgramWithEnv (initialEnv dummy)
 
 checkProgramWithEnv :: Ord a => TyEnv a -> Program a -> Either [Error a] (TyEnv a)
 checkProgramWithEnv env p = do
     let (errs, _) = checkWellFormednessWith (tyEnvToWFEnv env) p
+    -- Throw wf errs if there are any
     unless (null errs) (Left errs)
+    -- Run the type checker with the initial env passed in and wrap the result in an either
+    -- The weirdness is due to needing to put a possible error into a singleton list to make the types line up
     either (Left . return) Right (execStateT (typeCheckProgramEnv p) env)
 
+-- | Run a single statment given an environment and return the resulting environment
+--   Used for REPL
 runStatement :: Ord a => TyEnv a -> Statement a -> Either [Error a] (TyEnv a)
 runStatement env s = checkProgramWithEnv env (Program [s])

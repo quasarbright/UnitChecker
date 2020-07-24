@@ -1,0 +1,6 @@
+var m :: [kg]
+var a :: [m s^-2]
+var F :: [N]
+eq F = m*a
+// this should error
+eq F = m*m*a
