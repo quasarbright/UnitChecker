@@ -53,12 +53,13 @@ statement =  varDecl
          <|> eqn
          <|> derivedDecl
          <|> varDef
+         <|> funDef
          <?> "statement"
 
 varDecl :: Parser (Statement SS)
 varDecl = do
     ((name, u), ss) <- wrapSS $ do
-        () <- keyWordTok "var"
+        () <- var
         name <- ident
         () <- annotTok
         u <- unit
@@ -71,7 +72,7 @@ exprStatement = uncurry ExprStatement <$> wrapSS (keyWordTok "expr" *> expr)
 eqn :: Parser (Statement SS)
 eqn = do
     ((left, right), ss) <- wrapSS $ do
-        () <- keyWordTok "eq"
+        () <- eq
         left <- expr
         () <- eqTok
         right <- expr
@@ -81,7 +82,7 @@ eqn = do
 derivedDecl :: Parser (Statement SS)
 derivedDecl = do
     ((name, u), ss) <- wrapSS $ do
-        () <- keyWordTok "derived"
+        () <- derived
         name <- ident
         () <- eqTok
         u <- unit
@@ -91,9 +92,19 @@ derivedDecl = do
 varDef :: Parser (Statement SS)
 varDef = do
     ((name, e), ss) <- wrapSS $ do
-        () <- keyWordTok "def"
+        () <- def
         name <- ident
         () <- eqTok
         e <- expr
         return (name, e)
     return (VarDefStatement name e ss)
+
+funDef :: Parser (Statement SS)
+funDef = do
+    ((name, sig), ss) <- wrapSS $ do
+        fun
+        name <- ident
+        annotTok
+        sig <- signatureP
+        return (name, sig)
+    return (FunDefStatement name sig ss)

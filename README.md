@@ -11,6 +11,7 @@ For an example displaying the syntax and all the features, see `examples/fma.uni
 * define your own derived units
 * declare a variable's units and use it in expressions
 * define a variable to infer its units, then use it in expressions
+* define function signatures
 * common derived units (i.e. `N = [kg m s^-2]`), variables (i.e. `g :: [m s^-2]`), and functions (i.e. `sin :: ([]) -> []`) are included in prelude
 * has a REPL
 
@@ -55,7 +56,7 @@ Unit mismatch: Expected units of [kg m s^-2], but got units of [kg] at examples/
 ## Syntax
 a UnitChecker program consists of a list of statements.
 A statement can declare the units of a variable, define a variable and infer its units,
-define a derived unit (like Newtons), check the units of an expression,
+define a derived unit (like Newtons), define the signature of a function, check the units of an expression,
 and check the units of both sides of an equation and check that they're equivalent
 
 An expression is an arithmetic expression of variables and numbers with operators `+-*/^`, function calls, and unit annotations
@@ -68,9 +69,12 @@ Here is the context free grammar for a program:
 
 <statement> = 'def' <identifier> '=' <expression>
             | 'var' <identifier> '::' <unit>
+            | 'fun' <identifier> '::' '(' <units>? ')' '->' <unit>
             | 'derived' <identifier> '=' <unit>
             | 'expr' <expr>
             | 'eq' <expr> '=' <expr>
+
+<units> = <unit> | <unit> ',' <units> 
 
 <expr> = <expr> <binop> <expr>
        | '-' <expr>

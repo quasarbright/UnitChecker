@@ -195,6 +195,7 @@ checkWellFormednessWith wfenv (Program statements) = foldl go ([], wfenv) statem
         ExprStatement e _ -> (errs++checkExprWellFormedness env e, env)
         EqnStatement (Equation left right _) _ -> (errs++checkExprWellFormedness env left++checkExprWellFormedness env right, env)
         VarDefStatement name e _ -> (errs++checkExprWellFormedness env e, (deriveds, name:vars, funs))
+        FunDefStatement name (Signature args ret _) _ -> (errs++concatMap (checkUnit deriveds) (args++[ret]), (deriveds, vars, name:funs))
 
 -- | check the well-formedness of a program using the prelude's defined names as the initial environment
 checkWellFormedness :: Program a -> ([Error a], ([String], [String], [String]))
@@ -230,6 +231,7 @@ checkStatement (DerivedDeclStatement (DerivedDecl name unit _) _) = modify $ add
 checkStatement (VarDefStatement name e _) = do
     unit <- typeSynth e
     modify $ addVar name unit
+checkStatement (FunDefStatement name sig _) = modify $ addFun name sig
 
 {--
 This is the real meat of the type checker. I use a simple bidirectional type system since there is the polymorphism is simple (just binops) and inference is easy.

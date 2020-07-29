@@ -207,6 +207,7 @@ data Statement a = ExprStatement (Expr a) a
                  | VarDeclStatement (VarDecl a) a
                  | DerivedDeclStatement (DerivedDecl a) a
                  | VarDefStatement String (Expr a) a
+                 | FunDefStatement String (Signature a) a
                  deriving(Eq, Ord, Show)
 
 -- | A program to be type-checked

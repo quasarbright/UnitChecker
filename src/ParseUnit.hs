@@ -1,4 +1,4 @@
-module ParseUnit(unit, parseUnit) where
+module ParseUnit(unit, parseUnit, signatureP, parseSignature) where
 
 import ParseUtils
 import Exprs
@@ -39,5 +39,18 @@ basePow = do
 unit :: Parser (Unit SS)
 unit = fromBasesList <$> (P.brackets lexer (many basePow) <?> "unit")
 
+
 parseUnit :: String -> Either ParseError (Unit SS)
 parseUnit = parse (P.whiteSpace lexer *> unit <* eof) ""
+
+signatureP :: Parser (Signature SS)
+signatureP = do
+    ((args, ret), ss) <- wrapSS $ do
+        args <- inParens $ sepBy unit commaTok
+        arrowTok
+        ret <- unit
+        return (args, ret)
+    return $ Signature args ret ss
+
+parseSignature :: String -> Either ParseError (Signature SS)
+parseSignature = parse (P.whiteSpace lexer *> signatureP <* eof) ""

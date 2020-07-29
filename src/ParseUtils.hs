@@ -30,7 +30,7 @@ lang = P.LanguageDef{
     P.opStart = oneOf "+-*/^=:,;",
     P.opLetter = oneOf ":",
     P.reservedNames = ["var", "def", "fun", "expr", "eq", "derived"],
-    P.reservedOpNames = ["+", "-", "*", "/", "^", "=", "::", ",", ";"],
+    P.reservedOpNames = ["+", "-", "*", "/", "^", "=", "::", ",", ";", "->"],
     P.caseSensitive = True}
 
 lexer :: P.GenTokenParser String () Data.Functor.Identity.Identity
@@ -82,6 +82,9 @@ minusTok = P.reservedOp lexer "-"
 
 commaTok :: Parser ()
 commaTok = P.reservedOp lexer ","
+
+arrowTok :: Parser ()
+arrowTok = P.reservedOp lexer "->"
 
 ident :: Parser String
 ident = P.identifier lexer
