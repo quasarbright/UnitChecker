@@ -103,6 +103,3 @@ if you are running from source, use `stack run` or `stack exec UnitChecker-exe`:
 stack run path/to/file.unit
 ```
 To run the REPL, just run without specifying a file
-## dependencies
-* parsec
-* containers
